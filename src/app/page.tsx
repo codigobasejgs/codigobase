@@ -11,9 +11,8 @@ body { background:#060b16; color:#f4f7ff; font-family:-apple-system,'Inter',sans
   border-bottom:1px solid rgba(255,255,255,0.05);
   position:sticky; top:0; z-index:50;
 }
-.logo { font-size:17px; font-weight:900; letter-spacing:-0.5px; }
-.logo b { color:#F97316; font-weight:900; }
-.logo span { color:#f4f7ff; }
+.logo { display:flex; align-items:center; text-decoration:none; }
+.logo img { height:36px; width:auto; display:block; }
 .nav-links { display:flex; gap:28px; }
 .nav-links a { font-size:13px; color:#8896b3; text-decoration:none; transition:color .15s; }
 .nav-links a:hover { color:#f4f7ff; }
@@ -281,8 +280,8 @@ body { background:#060b16; color:#f4f7ff; font-family:-apple-system,'Inter',sans
   border-top:1px solid rgba(255,255,255,.05);
 }
 .footer-grid { display:grid; grid-template-columns:2.2fr 1fr 1fr 1.4fr; gap:40px; margin-bottom:44px; }
-.f-logo { font-size:20px; font-weight:900; margin-bottom:12px; }
-.f-logo b { color:#F97316; }
+.f-logo { display:flex; align-items:center; margin-bottom:12px; }
+.f-logo img { height:42px; width:auto; display:block; }
 .f-desc { font-size:13px; color:#6b7691; line-height:1.65; max-width:220px; margin-bottom:20px; }
 .f-social { display:flex; gap:12px; }
 .f-social-link { width:32px; height:32px; border-radius:8px; background:rgba(255,255,255,.04); border:1px solid rgba(255,255,255,.07); display:flex; align-items:center; justify-content:center; font-size:14px; color:#8896b3; text-decoration:none; transition:color .15s,border-color .15s; }
@@ -301,7 +300,7 @@ body { background:#060b16; color:#f4f7ff; font-family:-apple-system,'Inter',sans
 const markup = `
 <!-- HEADER -->
 <header class="hdr">
-  <div class="logo"><span>Código</span><b>Base</b></div>
+  <a class="logo" href="#topo" aria-label="Código Base"><img src="/logo-oficial.png" alt="Código Base" /></a>
   <nav class="nav-links">
     <a href="#servicos">Serviços</a>
     <a href="#projetos">Projetos</a>
@@ -657,7 +656,7 @@ const markup = `
 <footer class="footer">
   <div class="footer-grid">
     <div>
-      <div class="f-logo"><span>Código</span><b>Base</b></div>
+      <div class="f-logo"><img src="/logo-oficial.png" alt="Código Base" /></div>
       <p class="f-desc">Software, hardware e automação para empresas que precisam de tecnologia que funciona de verdade.</p>
       <div class="f-social">
         <a class="f-social-link" href="https://instagram.com/codigo.base" target="_blank" rel="noopener noreferrer" aria-label="Instagram da Código Base"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg></a>
