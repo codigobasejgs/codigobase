@@ -35,9 +35,9 @@ export default function Home() {
                 <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Button>
 
-              <Button size="lg" variant="outline" asChild>
-                <Link href="/projetos">Ver Projetos</Link>
-              </Button>
+              <Link href="/projetos" className="inline-flex items-center justify-center h-9 gap-1.5 px-2.5 rounded-lg border border-border bg-background hover:bg-muted hover:text-foreground text-sm font-medium transition-all">
+                Ver Projetos
+              </Link>
             </div>
           </div>
         </div>

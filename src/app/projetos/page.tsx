@@ -120,9 +120,9 @@ export default function ProjetosPage() {
               <p className="text-xl text-muted-foreground mb-6">
                 Em breve publicaremos nossos cases de sucesso.
               </p>
-              <Button asChild>
-                <Link href="/contato">Seja nosso próximo case</Link>
-              </Button>
+              <Link href="/contato" className="inline-flex items-center justify-center h-8 gap-1.5 px-2.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/80 text-sm font-medium transition-all">
+                Seja nosso próximo case
+              </Link>
             </div>
           )}
         </div>
