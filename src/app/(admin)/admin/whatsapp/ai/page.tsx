@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Bot, Loader2, Save, Send } from "lucide-react";
 
 type Settings = {
-  provider: "anthropic" | "openai";
+  provider: "anthropic" | "openai" | "gemini";
   api_key: string;
   model: string;
   system_prompt: string;
@@ -21,9 +21,9 @@ Nunca prometa preços ou prazos sem validação da equipe.`;
 
 export default function AISettingsPage() {
   const [settings, setSettings] = useState<Settings>({
-    provider: "anthropic",
+    provider: "gemini",
     api_key: "",
-    model: "claude-opus-4-7",
+    model: "gemini-2.5-flash",
     system_prompt: DEFAULT_PROMPT,
     auto_reply: false,
     auto_reply_delay_ms: 3000,
@@ -42,8 +42,22 @@ export default function AISettingsPage() {
       });
   }, []);
 
+  const defaultModels: Record<string, string> = {
+    anthropic: "claude-opus-4-7",
+    openai: "gpt-4o",
+    gemini: "gemini-2.5-flash",
+  };
+
   function set<K extends keyof Settings>(key: K, value: Settings[K]) {
-    setSettings((prev) => ({ ...prev, [key]: value }));
+    setSettings((prev) => {
+      const next = { ...prev, [key]: value };
+      // Auto-set model when provider changes
+      if (key === "provider") {
+        const p = value as string;
+        next.model = defaultModels[p] ?? "";
+      }
+      return next;
+    });
   }
 
   async function save() {
@@ -88,13 +102,14 @@ export default function AISettingsPage() {
             <div>
               <label className={label}>Provider</label>
               <select className={input} value={settings.provider} onChange={(e) => set("provider", e.target.value as Settings["provider"])}>
+                <option value="gemini">Google Gemini</option>
                 <option value="anthropic">Anthropic Claude</option>
                 <option value="openai">OpenAI ChatGPT</option>
               </select>
             </div>
             <div>
               <label className={label}>Modelo</label>
-              <input className={input} value={settings.model} onChange={(e) => set("model", e.target.value)} placeholder="claude-opus-4-7" />
+              <input className={input} value={settings.model} onChange={(e) => set("model", e.target.value)} placeholder={defaultModels[settings.provider] ?? "modelo"} />
             </div>
           </div>
 
