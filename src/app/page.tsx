@@ -309,10 +309,10 @@ const markup = `
 <header class="hdr">
   <a class="nav-logo" href="#topo" aria-label="Código Base — voltar ao início"><img src="/logo-oficial.png" alt="Código Base — Software & Hardware Solutions" width="52" height="52" loading="eager" decoding="async" class="logo-img" /><span class="logo-wordmark"><span class="logo-codigo">CÓDIGO</span><span class="logo-dash">-</span><span class="logo-base">BASE</span></span></a>
   <nav class="nav-links">
-    <a href="#servicos">Serviços</a>
-    <a href="#projetos">Projetos</a>
-    <a href="#depoimentos">Depoimentos</a>
-    <a href="#contato">Contato</a>
+    <a href="/servicos">Serviços</a>
+    <a href="/projetos">Projetos</a>
+    <a href="/sobre">Sobre</a>
+    <a href="/contato">Contato</a>
   </nav>
   <a class="hdr-cta" href="https://wa.me/5511986262240?text=Ol%C3%A1%2C+vim+pelo+site+da+C%C3%B3digo+Base+e+quero+saber+mais" target="_blank" rel="noopener noreferrer">
     <span>💬</span> Falar no WhatsApp
@@ -341,7 +341,7 @@ const markup = `
       <a class="btn-a" href="https://wa.me/5511986262240?text=Ol%C3%A1%2C+vim+pelo+site+da+C%C3%B3digo+Base+e+quero+saber+mais" target="_blank" rel="noopener noreferrer">
         <span>💬</span> Falar no WhatsApp
       </a>
-      <a class="btn-b" href="#projetos">Ver projetos →</a>
+      <a class="btn-b" href="/projetos">Ver projetos →</a>
     </div>
     <div class="microcopy">Resposta em até 2 horas em dias úteis</div>
 
@@ -527,7 +527,7 @@ const markup = `
       <div class="sec-tag">Casos reais</div>
       <h2 class="sec-h2" style="margin-bottom:0;">Problemas resolvidos,<br/>resultados que ficaram</h2>
     </div>
-    <a href="#projetos" style="font-size:13px;color:#00C8E8;text-decoration:none;white-space:nowrap;">Ver todos os projetos →</a>
+    <a href="/projetos" style="font-size:13px;color:#00C8E8;text-decoration:none;white-space:nowrap;">Ver todos os projetos →</a>
   </div>
 
   <div class="proj-grid" style="margin-top:48px;">
@@ -673,13 +673,13 @@ const markup = `
     </div>
     <div class="f-col">
       <h5>Navegação</h5>
-      <a href="#topo">Home</a><a href="#servicos">Serviços</a><a href="#projetos">Projetos</a>
-      <a href="#depoimentos">Depoimentos</a><a href="#contato">Contato</a>
+      <a href="/">Home</a><a href="/servicos">Serviços</a><a href="/projetos">Projetos</a>
+      <a href="/sobre">Sobre</a><a href="/contato">Contato</a>
     </div>
     <div class="f-col">
       <h5>Serviços</h5>
-      <a href="#servicos">Sistemas Web</a><a href="#servicos">Apps Mobile</a><a href="#servicos">SaaS</a>
-      <a href="#servicos">Automações</a><a href="#servicos">Hardware IoT</a><a href="#servicos">Infraestrutura</a>
+      <a href="/servicos#software">Sistemas Web</a><a href="/servicos#software">Apps Mobile</a><a href="/servicos#software">SaaS</a>
+      <a href="/servicos#automacao">Automações</a><a href="/servicos#hardware">Hardware IoT</a><a href="/servicos#hardware">Infraestrutura</a>
     </div>
     <div class="f-col">
       <h5>Contato direto</h5>
@@ -700,8 +700,8 @@ const markup = `
   <div class="footer-bottom">
     <p><span>© 2026 Código Base. Todos os direitos reservados.</span></p>
     <div class="footer-bottom-links">
-      <a href="#contato">Política de Privacidade</a>
-      <a href="#contato">Termos de Uso</a>
+      <a href="/privacidade">Política de Privacidade</a>
+      <a href="/termos">Termos de Uso</a>
     </div>
   </div>
 </footer>
