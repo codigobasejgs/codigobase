@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { headers } from "next/headers";
-import { resend } from "@/lib/resend/client";
+import { getResend } from "@/lib/resend/client";
 
 function normalizeField(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -91,9 +91,10 @@ export async function POST(request: NextRequest) {
     const from = process.env.RESEND_FROM;
     const replyTo = process.env.RESEND_REPLY_TO || email;
 
-    if (process.env.RESEND_API_KEY && notificationEmail && from) {
+    const resendClient = getResend();
+    if (resendClient && notificationEmail && from) {
       try {
-        await resend.emails.send({
+        await resendClient.emails.send({
           from,
           to: notificationEmail,
           replyTo,
