@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { MessageCircle, Mail } from "lucide-react";
+import { Mail, MessageCircle } from "lucide-react";
 import { siteConfig } from "@/config/site";
 
 const navigation = {
@@ -8,17 +8,16 @@ const navigation = {
     { name: "Home", href: "/" },
     { name: "Serviços", href: "/servicos" },
     { name: "Projetos", href: "/projetos" },
-    { name: "Blog", href: "/blog" },
     { name: "Sobre", href: "/sobre" },
     { name: "Contato", href: "/contato" },
   ],
   servicos: [
-    { name: "Sites", href: "/servicos/sites" },
-    { name: "Sistemas", href: "/servicos/sistemas" },
-    { name: "SaaS", href: "/servicos/saas" },
-    { name: "Apps", href: "/servicos/apps" },
-    { name: "Automações", href: "/servicos/automacoes" },
-    { name: "APIs", href: "/servicos/apis" },
+    { name: "Sistemas Web", href: "/servicos#software" },
+    { name: "Apps e PWA", href: "/servicos#software" },
+    { name: "SaaS", href: "/servicos#software" },
+    { name: "Automações", href: "/servicos#automacao" },
+    { name: "Infraestrutura", href: "/servicos#hardware" },
+    { name: "Hardware IoT", href: "/servicos#hardware" },
   ],
   legal: [
     { name: "Política de Privacidade", href: "/privacidade" },
@@ -28,60 +27,68 @@ const navigation = {
 
 export function Footer() {
   return (
-    <footer className="bg-[#050710] border-t border-border/30">
+    <footer className="bg-[#0A0E1A] border-t border-[#1E2D45]">
       <div className="container mx-auto px-4 py-12 md:py-16">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 md:gap-12">
-          {/* Column 1: Brand */}
           <div className="space-y-4">
-            <Link href="/" className="inline-block">
+            <Link href="/" className="inline-flex items-center gap-2.5" aria-label="Código Base">
               <Image
                 src="/logo-oficial.png"
-                alt="Código Base"
-                width={140}
-                height={40}
-                className="h-10 w-auto"
+                alt="Código Base — Software & Hardware Solutions"
+                width={52}
+                height={52}
+                className="h-11 w-11 rounded-full object-contain drop-shadow-[0_0_8px_rgba(0,200,232,0.25)]"
               />
+              <span className="flex items-center font-heading font-extrabold tracking-[0.04em] text-lg leading-none">
+                <span className="text-[#00C8E8]">CÓDIGO</span>
+                <span className="text-[#5A7090] mx-px">-</span>
+                <span className="text-[#FF7A00]">BASE</span>
+              </span>
             </Link>
-            <p className="text-sm text-muted-foreground max-w-xs">
-              Transformamos ideias em soluções digitais que impulsionam
-              negócios.
+            <p className="text-sm text-[#7A8BA8] max-w-xs leading-relaxed">
+              Software, hardware e automação para empresas que precisam de tecnologia que funciona de verdade.
             </p>
             <div className="flex items-center gap-4">
               <a
                 href={siteConfig.links.instagram}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-muted-foreground hover:text-brand-cyan-400 transition-colors"
-                aria-label="Instagram"
+                className="text-[#7A8BA8] hover:text-[#00C8E8] transition-colors"
+                aria-label="Instagram da Código Base"
               >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                  <path fillRule="evenodd" d="M12.315 2c2.43 0 2.784.013 3.808.06 1.064.049 1.791.218 2.427.465a4.902 4.902 0 011.772 1.153 4.902 4.902 0 011.153 1.772c.247.636.416 1.363.465 2.427.048 1.067.06 1.407.06 4.123v.08c0 2.643-.012 2.987-.06 4.043-.049 1.064-.218 1.791-.465 2.427a4.902 4.902 0 01-1.153 1.772 4.902 4.902 0 01-1.772 1.153c-.636.247-1.363.416-2.427.465-1.067.048-1.407.06-4.123.06h-.08c-2.643 0-2.987-.012-4.043-.06-1.064-.049-1.791-.218-2.427-.465a4.902 4.902 0 01-1.772-1.153 4.902 4.902 0 01-1.153-1.772c-.247-.636-.416-1.363-.465-2.427-.047-1.024-.06-1.379-.06-3.808v-.63c0-2.43.013-2.784.06-3.808.049-1.064.218-1.791.465-2.427a4.902 4.902 0 011.153-1.772A4.902 4.902 0 015.45 2.525c.636-.247 1.363-.416 2.427-.465C8.901 2.013 9.256 2 11.685 2h.63zm-.081 1.802h-.468c-2.456 0-2.784.011-3.807.058-.975.045-1.504.207-1.857.344-.467.182-.8.398-1.15.748-.35.35-.566.683-.748 1.15-.137.353-.3.882-.344 1.857-.047 1.023-.058 1.351-.058 3.807v.468c0 2.456.011 2.784.058 3.807.045.975.207 1.504.344 1.857.182.466.399.8.748 1.15.35.35.683.566 1.15.748.353.137.882.3 1.857.344 1.054.048 1.37.058 4.041.058h.08c2.597 0 2.917-.01 3.96-.058.976-.045 1.505-.207 1.858-.344.466-.182.8-.398 1.15-.748.35-.35.566-.683.748-1.15.137-.353.3-.882.344-1.857.048-1.055.058-1.37.058-4.041v-.08c0-2.597-.01-2.917-.058-3.96-.045-.976-.207-1.505-.344-1.858a3.097 3.097 0 00-.748-1.15 3.098 3.098 0 00-1.15-.748c-.353-.137-.882-.3-1.857-.344-1.023-.047-1.351-.058-3.807-.058zM12 6.865a5.135 5.135 0 110 10.27 5.135 5.135 0 010-10.27zm0 1.802a3.333 3.333 0 100 6.666 3.333 3.333 0 000-6.666zm5.338-3.205a1.2 1.2 0 110 2.4 1.2 1.2 0 010-2.4z" clipRule="evenodd" />
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24" aria-hidden="true">
+                  <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
+                  <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+                  <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
                 </svg>
               </a>
               <a
                 href={siteConfig.links.whatsapp}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-muted-foreground hover:text-brand-cyan-400 transition-colors"
-                aria-label="WhatsApp"
+                className="text-[#7A8BA8] hover:text-[#00C8E8] transition-colors"
+                aria-label="WhatsApp da Código Base"
               >
                 <MessageCircle className="w-5 h-5" />
+              </a>
+              <a
+                href={siteConfig.links.email}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[#7A8BA8] hover:text-[#00C8E8] transition-colors"
+                aria-label="E-mail da Código Base"
+              >
+                <Mail className="w-5 h-5" />
               </a>
             </div>
           </div>
 
-          {/* Column 2: Navegação */}
           <div>
-            <h3 className="font-heading font-semibold text-foreground mb-4">
-              Navegação
-            </h3>
+            <h3 className="font-heading font-semibold text-[#EDF2F7] mb-4">Navegação</h3>
             <ul className="space-y-3">
               {navigation.navegacao.map((item) => (
                 <li key={item.name}>
-                  <Link
-                    href={item.href}
-                    className="text-sm text-muted-foreground hover:text-brand-cyan-400 transition-colors"
-                  >
+                  <Link href={item.href} className="text-sm text-[#7A8BA8] hover:text-[#00C8E8] transition-colors">
                     {item.name}
                   </Link>
                 </li>
@@ -89,18 +96,12 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Column 3: Serviços */}
           <div>
-            <h3 className="font-heading font-semibold text-foreground mb-4">
-              Serviços
-            </h3>
+            <h3 className="font-heading font-semibold text-[#EDF2F7] mb-4">Serviços</h3>
             <ul className="space-y-3">
               {navigation.servicos.map((item) => (
                 <li key={item.name}>
-                  <Link
-                    href={item.href}
-                    className="text-sm text-muted-foreground hover:text-brand-cyan-400 transition-colors"
-                  >
+                  <Link href={item.href} className="text-sm text-[#7A8BA8] hover:text-[#00C8E8] transition-colors">
                     {item.name}
                   </Link>
                 </li>
@@ -108,62 +109,38 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Column 4: Contato */}
           <div>
-            <h3 className="font-heading font-semibold text-foreground mb-4">
-              Contato
-            </h3>
+            <h3 className="font-heading font-semibold text-[#EDF2F7] mb-4">Contato direto</h3>
             <ul className="space-y-3">
               <li>
-                <a
-                  href="mailto:contato@codigobase.com.br"
-                  className="text-sm text-muted-foreground hover:text-brand-cyan-400 transition-colors flex items-center gap-2"
-                >
+                <a href={siteConfig.links.email} target="_blank" rel="noopener noreferrer" className="text-sm text-[#7A8BA8] hover:text-[#00C8E8] transition-colors flex items-center gap-2">
                   <Mail className="w-4 h-4" />
-                  contato@codigobase.com.br
+                  {siteConfig.contact.email}
                 </a>
               </li>
               <li>
-                <a
-                  href={siteConfig.links.whatsapp}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-muted-foreground hover:text-brand-cyan-400 transition-colors flex items-center gap-2"
-                >
+                <a href={siteConfig.links.whatsapp} target="_blank" rel="noopener noreferrer" className="text-sm text-[#7A8BA8] hover:text-[#00C8E8] transition-colors flex items-center gap-2">
                   <MessageCircle className="w-4 h-4" />
-                  WhatsApp
+                  {siteConfig.contact.whatsappDisplay}
                 </a>
               </li>
               <li>
-                <a
-                  href={siteConfig.links.instagram}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-muted-foreground hover:text-brand-cyan-400 transition-colors flex items-center gap-2"
-                >
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path fillRule="evenodd" d="M12.315 2c2.43 0 2.784.013 3.808.06 1.064.049 1.791.218 2.427.465a4.902 4.902 0 011.772 1.153 4.902 4.902 0 011.153 1.772c.247.636.416 1.363.465 2.427.048 1.067.06 1.407.06 4.123v.08c0 2.643-.012 2.987-.06 4.043-.049 1.064-.218 1.791-.465 2.427a4.902 4.902 0 01-1.153 1.772 4.902 4.902 0 01-1.772 1.153c-.636.247-1.363.416-2.427.465-1.067.048-1.407.06-4.123.06h-.08c-2.643 0-2.987-.012-4.043-.06-1.064-.049-1.791-.218-2.427-.465a4.902 4.902 0 01-1.772-1.153 4.902 4.902 0 01-1.153-1.772c-.247-.636-.416-1.363-.465-2.427-.047-1.024-.06-1.379-.06-3.808v-.63c0-2.43.013-2.784.06-3.808.049-1.064.218-1.791.465-2.427a4.902 4.902 0 011.153-1.772A4.902 4.902 0 015.45 2.525c.636-.247 1.363-.416 2.427-.465C8.901 2.013 9.256 2 11.685 2h.63zm-.081 1.802h-.468c-2.456 0-2.784.011-3.807.058-.975.045-1.504.207-1.857.344-.467.182-.8.398-1.15.748-.35.35-.566.683-.748 1.15-.137.353-.3.882-.344 1.857-.047 1.023-.058 1.351-.058 3.807v.468c0 2.456.011 2.784.058 3.807.045.975.207 1.504.344 1.857.182.466.399.8.748 1.15.35.35.683.566 1.15.748.353.137.882.3 1.857.344 1.054.048 1.37.058 4.041.058h.08c2.597 0 2.917-.01 3.96-.058.976-.045 1.505-.207 1.858-.344.466-.182.8-.398 1.15-.748.35-.35.566-.683.748-1.15.137-.353.3-.882.344-1.857.048-1.055.058-1.37.058-4.041v-.08c0-2.597-.01-2.917-.058-3.96-.045-.976-.207-1.505-.344-1.858a3.097 3.097 0 00-.748-1.15 3.098 3.098 0 00-1.15-.748c-.353-.137-.882-.3-1.857-.344-1.023-.047-1.351-.058-3.807-.058zM12 6.865a5.135 5.135 0 110 10.27 5.135 5.135 0 010-10.27zm0 1.802a3.333 3.333 0 100 6.666 3.333 3.333 0 000-6.666zm5.338-3.205a1.2 1.2 0 110 2.4 1.2 1.2 0 010-2.4z" clipRule="evenodd" />
-                  </svg>
-                  @codigo.base
+                <a href={siteConfig.links.instagram} target="_blank" rel="noopener noreferrer" className="text-sm text-[#7A8BA8] hover:text-[#00C8E8] transition-colors flex items-center gap-2">
+                  <span className="text-base">@</span>
+                  {siteConfig.contact.instagramHandle}
                 </a>
               </li>
             </ul>
           </div>
         </div>
 
-        {/* Bottom Bar */}
-        <div className="mt-12 pt-8 border-t border-border/30 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-sm text-muted-foreground">
-            © {new Date().getFullYear()} Código Base. Todos os direitos
-            reservados.
+        <div className="mt-12 pt-8 border-t border-[#1E2D45] flex flex-col md:flex-row justify-between items-center gap-4">
+          <p className="text-sm text-[#3D5068]">
+            © {new Date().getFullYear()} Código Base. Todos os direitos reservados.
           </p>
           <div className="flex items-center gap-6">
             {navigation.legal.map((item) => (
-              <Link
-                key={item.name}
-                href={item.href}
-                className="text-sm text-muted-foreground hover:text-brand-cyan-400 transition-colors"
-              >
+              <Link key={item.name} href={item.href} className="text-sm text-[#3D5068] hover:text-[#00C8E8] transition-colors">
                 {item.name}
               </Link>
             ))}

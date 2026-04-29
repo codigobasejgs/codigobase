@@ -9,7 +9,7 @@ interface SendMessageResponse {
   status: string;
 }
 
-interface SendMediaResponse extends SendMessageResponse {}
+type SendMediaResponse = SendMessageResponse
 
 interface SendStatusResponse {
   status: string;

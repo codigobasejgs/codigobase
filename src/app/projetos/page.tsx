@@ -1,158 +1,127 @@
-import { Metadata } from "next";
+import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, ExternalLink } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowRight, MessageCircle } from "lucide-react";
+import { siteConfig } from "@/config/site";
 
 export const metadata: Metadata = {
   title: "Projetos | Código Base",
-  description: "Conheça nossos cases de sucesso em software, hardware e automação",
+  description:
+    "Mini cases de software, automação, IA e infraestrutura desenvolvidos pela Código Base para operações reais.",
 };
 
-export default function ProjetosPage() {
-  // Dados mockados - serão substituídos por dados do Supabase
-  const projetos = [
-    {
-      id: "1",
-      titulo: "Sistema de Gestão Empresarial",
-      resumo: "ERP completo para indústria de médio porte com controle de estoque, vendas e financeiro.",
-      cliente: "Indústria XYZ",
-      nicho: "Indústria",
-      tags: ["React", "Node.js", "PostgreSQL"],
-      cover_url: "",
-    },
-    {
-      id: "2",
-      titulo: "Automação WhatsApp Business",
-      resumo: "Sistema de atendimento automatizado com IA para e-commerce com 10k+ mensagens/dia.",
-      cliente: "E-commerce ABC",
-      nicho: "E-commerce",
-      tags: ["Evolution API", "OpenAI", "n8n"],
-      cover_url: "",
-    },
-    {
-      id: "3",
-      titulo: "IoT Industrial",
-      resumo: "Rede de sensores para monitoramento de temperatura e umidade em tempo real.",
-      cliente: "Frigorífico DEF",
-      nicho: "Indústria",
-      tags: ["ESP32", "MQTT", "Dashboard"],
-      cover_url: "",
-    },
-  ];
+const projetos = [
+  {
+    id: "erp-vendas-estoque",
+    cliente: "Distribuidora · Região de Campinas",
+    titulo: "ERP de Vendas, Estoque e Financeiro",
+    nicho: "Software · ERP",
+    problema:
+      "Gestão feita em planilhas compartilhadas, com vendedores disputando o mesmo estoque e sem visão confiável do financeiro.",
+    solucao:
+      "Sistema web com controle de estoque em tempo real, pedidos, comissões e relatório gerencial para decisão diária.",
+    resultado: "+38%",
+    resultadoDescricao: "produtividade operacional nos primeiros 3 meses",
+    tags: ["Next.js", "Node.js", "PostgreSQL", "Dashboard"],
+    accent: "cyan",
+  },
+  {
+    id: "bot-whatsapp-ia",
+    cliente: "E-commerce de moda · São Paulo",
+    titulo: "Bot de Atendimento WhatsApp + IA",
+    nicho: "Automação · IA",
+    problema:
+      "Equipe de 2 pessoas respondendo centenas de mensagens por dia, com clientes esperando horas por rastreio e dúvidas simples.",
+    solucao:
+      "Fluxo de atendimento com IA para rastreio, FAQ, qualificação de compra e handoff para humano nos casos complexos.",
+    resultado: "-70%",
+    resultadoDescricao: "no tempo médio de resposta",
+    tags: ["WhatsApp API", "IA", "n8n", "Webhooks"],
+    accent: "orange",
+  },
+  {
+    id: "monitoramento-iot-termico",
+    cliente: "Indústria frigorífica · Interior de SP",
+    titulo: "Rede IoT de Monitoramento Térmico",
+    nicho: "Hardware · IoT",
+    problema:
+      "Variações de temperatura eram descobertas tarde demais, gerando risco de perda de carga e problemas sanitários.",
+    solucao:
+      "Sensores ESP32 com alertas em tempo real e dashboard histórico para acompanhar temperatura e umidade por ambiente.",
+    resultado: "R$ 0",
+    resultadoDescricao: "em perda de carga desde a instalação piloto",
+    tags: ["ESP32", "IoT", "Dashboard", "Alertas"],
+    accent: "cyan",
+  },
+];
 
+export default function ProjetosPage() {
   return (
-    <div className="flex flex-col">
-      {/* Hero */}
-      <section className="py-20 bg-gradient-to-br from-bg-base via-bg-elevated to-bg-base">
-        <div className="container mx-auto px-4">
-          <div className="max-w-3xl mx-auto text-center">
-            <h1 className="text-4xl md:text-6xl font-bold mb-6">
-              Nossos Projetos
+    <div className="bg-[#0A0E1A] text-[#EDF2F7]">
+      <section className="relative overflow-hidden py-24 md:py-32">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(0,200,232,0.12),transparent_46%),radial-gradient(ellipse_at_bottom_left,rgba(255,122,0,0.12),transparent_46%)]" />
+        <div className="container relative mx-auto px-4">
+          <div className="max-w-3xl">
+            <p className="mb-4 text-xs font-bold uppercase tracking-[0.24em] text-[#00C8E8]">Projetos</p>
+            <h1 className="text-4xl font-black tracking-tight md:text-6xl">
+              Problemas reais resolvidos com tecnologia sob medida.
             </h1>
-            <p className="text-xl text-muted-foreground">
-              Cases reais de empresas que transformaram seus processos com nossas soluções.
+            <p className="mt-6 max-w-2xl text-lg leading-8 text-[#7A8BA8]">
+              Os cases abaixo usam nomes neutros para preservar clientes, mas seguem a estrutura que importa: contexto, solução e impacto percebido.
             </p>
           </div>
         </div>
       </section>
 
-      {/* Projetos Grid */}
-      <section className="py-24 bg-bg-elevated">
+      <section className="py-24">
         <div className="container mx-auto px-4">
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
-            {projetos.map((projeto) => (
-              <Link
-                key={projeto.id}
-                href={`/projetos/${projeto.id}`}
-                className="group"
-              >
-                <div className="relative h-full p-6 rounded-2xl bg-bg-base border border-border hover:border-brand-cyan-500/50 transition-all duration-300">
-                  <div className="absolute inset-0 bg-gradient-to-br from-brand-cyan-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl" />
-
-                  <div className="relative z-10 h-full flex flex-col">
-                    {/* Cover placeholder */}
-                    <div className="aspect-video rounded-xl bg-gradient-to-br from-brand-cyan-500/20 to-accent-orange-500/20 mb-6" />
-
-                    {/* Nicho badge */}
-                    <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-cyan-500/10 border border-brand-cyan-500/20 text-brand-cyan-500 text-xs font-medium w-fit mb-4">
-                      {projeto.nicho}
+          <div className="grid gap-6 lg:grid-cols-3">
+            {projetos.map((projeto) => {
+              const isOrange = projeto.accent === "orange";
+              return (
+                <article key={projeto.id} className="group flex h-full flex-col overflow-hidden rounded-3xl border border-[#243352] bg-[#111827] transition hover:-translate-y-1 hover:border-[#00C8E8]/40">
+                  <div className={`min-h-44 p-6 ${isOrange ? "bg-[radial-gradient(ellipse_at_top_right,rgba(255,122,0,0.2),transparent_55%),#111827]" : "bg-[radial-gradient(ellipse_at_top_right,rgba(0,200,232,0.2),transparent_55%),#111827]"}`}>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#7A8BA8]">{projeto.cliente}</p>
+                    <h2 className="mt-4 text-2xl font-black tracking-tight text-[#EDF2F7]">{projeto.titulo}</h2>
+                  </div>
+                  <div className="flex flex-1 flex-col p-6">
+                    <span className={`mb-5 w-fit rounded-full px-3 py-1 text-xs font-bold ${isOrange ? "bg-[#FF7A00]/10 text-[#FF7A00]" : "bg-[#00C8E8]/10 text-[#00C8E8]"}`}>{projeto.nicho}</span>
+                    <div className="space-y-4 text-sm leading-6">
+                      <p className="text-[#7A8BA8]"><strong className="text-[#EDF2F7]">Problema:</strong> {projeto.problema}</p>
+                      <p className="text-[#7A8BA8]"><strong className="text-[#EDF2F7]">Solução:</strong> {projeto.solucao}</p>
                     </div>
-
-                    <h3 className="text-xl font-bold mb-3 group-hover:text-brand-cyan-500 transition-colors">
-                      {projeto.titulo}
-                    </h3>
-
-                    <p className="text-muted-foreground mb-4 flex-grow">
-                      {projeto.resumo}
-                    </p>
-
-                    {/* Tags */}
-                    <div className="flex flex-wrap gap-2 mb-4">
+                    <div className={`mt-6 rounded-2xl border p-4 ${isOrange ? "border-[#FF7A00]/20 bg-[#FF7A00]/10" : "border-[#00C8E8]/20 bg-[#00C8E8]/10"}`}>
+                      <div className={`text-3xl font-black ${isOrange ? "text-[#FF7A00]" : "text-[#00C8E8]"}`}>{projeto.resultado}</div>
+                      <p className="mt-1 text-xs leading-5 text-[#7A8BA8]">{projeto.resultadoDescricao}</p>
+                    </div>
+                    <div className="mt-6 flex flex-wrap gap-2">
                       {projeto.tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="px-2 py-1 rounded-md bg-bg-elevated text-xs text-muted-foreground"
-                        >
-                          {tag}
-                        </span>
+                        <span key={tag} className="rounded-full bg-[#1A2236] px-3 py-1 text-xs text-[#7A8BA8]">{tag}</span>
                       ))}
                     </div>
-
-                    {/* Cliente */}
-                    <div className="text-sm text-muted-foreground mb-4">
-                      Cliente: <span className="text-foreground">{projeto.cliente}</span>
-                    </div>
-
-                    {/* CTA */}
-                    <div className="flex items-center text-brand-cyan-500 font-medium">
-                      Ver detalhes
-                      <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                    </div>
                   </div>
-                </div>
-              </Link>
-            ))}
+                </article>
+              );
+            })}
           </div>
-
-          {/* Empty state quando não houver projetos */}
-          {projetos.length === 0 && (
-            <div className="text-center py-20">
-              <p className="text-xl text-muted-foreground mb-6">
-                Em breve publicaremos nossos cases de sucesso.
-              </p>
-              <Link href="/contato" className="inline-flex items-center justify-center h-8 gap-1.5 px-2.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/80 text-sm font-medium transition-all">
-                Seja nosso próximo case
-              </Link>
-            </div>
-          )}
         </div>
       </section>
 
-      {/* Filtros (para implementar futuramente) */}
-      {/* <section className="py-12 bg-bg-base border-b border-border">
-        <div className="container mx-auto px-4">
-          <div className="flex flex-wrap gap-4 justify-center">
-            <Button variant="outline" size="sm">Todos</Button>
-            <Button variant="outline" size="sm">Software</Button>
-            <Button variant="outline" size="sm">Hardware</Button>
-            <Button variant="outline" size="sm">Automação</Button>
-          </div>
-        </div>
-      </section> */}
-
-      {/* CTA */}
-      <section className="py-24 bg-gradient-to-br from-brand-cyan-500 to-accent-orange-500">
+      <section className="border-y border-[#1E2D45] bg-[#111827]/55 py-20">
         <div className="container mx-auto px-4 text-center">
-          <h2 className="text-3xl md:text-5xl font-bold text-white mb-6">
-            Quer um projeto como esses?
+          <h2 className="mx-auto max-w-3xl text-3xl font-black tracking-tight md:text-5xl">
+            Quer transformar um gargalo da sua empresa no próximo case?
           </h2>
-          <p className="text-xl text-white/90 mb-8 max-w-2xl mx-auto">
-            Vamos conversar sobre como podemos ajudar seu negócio a crescer.
+          <p className="mx-auto mt-5 max-w-2xl text-[#7A8BA8]">
+            Comece por uma conversa objetiva. Você conta o problema, a gente mostra o caminho técnico mais seguro.
           </p>
-
-          <Button size="lg" className="bg-white text-brand-cyan-500 hover:bg-white/90">
-            Solicitar Orçamento
-          </Button>
+          <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+            <a href={siteConfig.links.whatsapp} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 rounded-full bg-[#FF7A00] px-7 py-4 text-sm font-bold text-white transition hover:bg-[#E06800]">
+              <MessageCircle className="h-4 w-4" /> Falar no WhatsApp
+            </a>
+            <Link href="/contato" className="inline-flex items-center justify-center gap-2 rounded-full border border-[#243352] px-7 py-4 text-sm font-semibold text-[#00C8E8] transition hover:border-[#00C8E8]">
+              Enviar briefing <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
         </div>
       </section>
     </div>
