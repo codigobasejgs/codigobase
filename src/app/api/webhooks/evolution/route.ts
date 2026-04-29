@@ -4,6 +4,21 @@ import { getEvolutionClient, EVOLUTION_INSTANCE } from "@/lib/evolution/client";
 import { generateAIReply } from "@/lib/ai/client";
 import type { AISettings, ChatMessage } from "@/lib/ai/client";
 
+// ── Padrões que indicam que o remetente é um chatbot/IA ──
+const BOT_PATTERNS = [
+  /^(\u{1F916}|\u{1F4AC})\s/u,                        // Começa com 🤖 ou 💬
+  /\b(sou uma? (ia|intelig[eê]ncia artificial|assistente virtual|chatbot|bot))\b/i,
+  /\b(i'?m (a |an )?(ai|artificial intelligence|chatbot|bot|virtual assistant))\b/i,
+  /\b(powered by (gpt|openai|gemini|claude|anthropic|chatgpt|dialogflow|watson))\b/i,
+  /\b(gerado por (ia|intelig[eê]ncia artificial))\b/i,
+  /\b(auto[\s-]?reply|auto[\s-]?resposta|resposta autom[aá]tica)\b/i,
+  /\b(this is an automated message|esta é uma mensagem autom[aá]tica)\b/i,
+];
+
+function looksLikeBot(text: string): boolean {
+  return BOT_PATTERNS.some((p) => p.test(text));
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
@@ -11,6 +26,7 @@ export async function POST(request: NextRequest) {
 
     const admin = createAdminClient();
 
+    // ── QR Code ──
     if (event === "QRCODE_UPDATED") {
       const qrBase64 = data?.qrcode?.base64;
       if (qrBase64) {
@@ -21,6 +37,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // ── Conexão ──
     if (event === "CONNECTION_UPDATE") {
       const state = data?.state ?? data?.connectionStatus;
       const statusMap: Record<string, string> = {
@@ -34,6 +51,7 @@ export async function POST(request: NextRequest) {
         .eq("instance_name_evolution", data.instance ?? EVOLUTION_INSTANCE());
     }
 
+    // ── Mensagens ──
     if (event === "MESSAGES_UPSERT") {
       const messages = Array.isArray(data?.messages) ? data.messages : [data?.message].filter(Boolean);
 
@@ -50,14 +68,45 @@ export async function POST(request: NextRequest) {
           msg?.message?.imageMessage?.caption ??
           "";
 
-        if (!remoteJid || remoteJid.endsWith("@g.us")) continue; // skip groups for now
+        // ──────────────────────────────────────────────
+        // REGRA 1: Ignorar grupos (@g.us) e broadcasts
+        // ──────────────────────────────────────────────
+        if (!remoteJid || remoteJid.endsWith("@g.us") || remoteJid === "status@broadcast") continue;
+
+        const instanceId = await getInstanceId(admin, instanceName);
+
+        // ──────────────────────────────────────────────
+        // REGRA 3: Admin respondeu manualmente via
+        //          Evolution (fromMe=true, mas NÃO veio
+        //          do nosso endpoint /send que já pausa)
+        //          → pausar IA nessa conversa
+        // ──────────────────────────────────────────────
+        if (fromMe && text) {
+          // Verificar se essa mensagem foi enviada pelo nosso sistema
+          // (se message_id_evolution já existe, foi o nosso send endpoint)
+          const { data: existingMsg } = await admin
+            .from("whatsapp_messages")
+            .select("id")
+            .eq("message_id_evolution", messageId)
+            .maybeSingle();
+
+          if (!existingMsg) {
+            // Mensagem fromMe que NÃO veio do nosso sistema = admin
+            // respondeu pelo WhatsApp do celular → pausar IA
+            await admin
+              .from("whatsapp_conversations")
+              .update({ ai_paused: true, updated_at: new Date().toISOString() })
+              .eq("remote_jid", remoteJid)
+              .eq("instance_id", instanceId);
+          }
+        }
 
         // Upsert conversation
         const { data: convData } = await admin
           .from("whatsapp_conversations")
           .upsert(
             {
-              instance_id: await getInstanceId(admin, instanceName),
+              instance_id: instanceId,
               remote_jid: remoteJid,
               contact_name: pushName || remoteJid.split("@")[0],
               last_message: text.slice(0, 200),
@@ -80,7 +129,7 @@ export async function POST(request: NextRequest) {
 
         // Store message
         await admin.from("whatsapp_messages").insert({
-          instance_id: await getInstanceId(admin, instanceName),
+          instance_id: instanceId,
           conversation_id: convData?.id ?? null,
           remote_jid: remoteJid,
           contact_name: pushName || null,
@@ -93,9 +142,23 @@ export async function POST(request: NextRequest) {
           updated_at: new Date().toISOString(),
         });
 
-        // AI auto-reply (only for incoming, non-paused conversations)
+        // ──────────────────────────────────────────────
+        // Decidir se dispara IA
+        // ──────────────────────────────────────────────
         if (!fromMe && text && !(convData?.ai_paused)) {
-          triggerAIReply(admin, remoteJid, instanceName, text).catch(console.error);
+          // REGRA 2: Detectar se é chatbot/IA → pausar
+          if (looksLikeBot(text)) {
+            if (convData?.id) {
+              await admin
+                .from("whatsapp_conversations")
+                .update({ ai_paused: true, updated_at: new Date().toISOString() })
+                .eq("id", convData.id);
+            }
+            console.log(`[AI] Bot detected for ${remoteJid}, pausing AI`);
+            continue; // Não responde
+          }
+
+          triggerAIReply(admin, remoteJid, instanceName, text, convData?.id).catch(console.error);
         }
       }
     }
@@ -120,7 +183,8 @@ async function triggerAIReply(
   admin: ReturnType<typeof createAdminClient>,
   remoteJid: string,
   instanceName: string,
-  incomingText: string
+  incomingText: string,
+  conversationId?: string | null
 ) {
   const { data: aiConfig } = await admin
     .from("ai_settings")
@@ -129,6 +193,16 @@ async function triggerAIReply(
     .single();
 
   if (!aiConfig || !aiConfig.api_key) return;
+
+  // Re-check ai_paused right before replying (admin may have responded during delay)
+  if (conversationId) {
+    const { data: conv } = await admin
+      .from("whatsapp_conversations")
+      .select("ai_paused")
+      .eq("id", conversationId)
+      .single();
+    if (conv?.ai_paused) return;
+  }
 
   // Fetch recent conversation history
   const { data: history } = await admin
@@ -160,8 +234,23 @@ async function triggerAIReply(
   const delay = aiConfig.auto_reply_delay_ms ?? 3000;
   await new Promise((r) => setTimeout(r, delay));
 
+  // Re-check AGAIN after delay (admin may have responded during the wait)
+  if (conversationId) {
+    const { data: conv } = await admin
+      .from("whatsapp_conversations")
+      .select("ai_paused")
+      .eq("id", conversationId)
+      .single();
+    if (conv?.ai_paused) return;
+  }
+
   const reply = await generateAIReply(messages, settings);
   if (!reply) return;
+
+  // ── REGRA 2 (extra): checar se a PRÓPRIA resposta parece de bot ──
+  // Isso não deveria acontecer, mas é uma segurança extra
+  // Se a IA gerou algo que o outro lado identificaria como bot, tudo bem — enviamos.
+  // O que importa é detectar o OUTRO como bot.
 
   const evolutionClient = getEvolutionClient();
   if (!evolutionClient) return;
@@ -171,6 +260,7 @@ async function triggerAIReply(
   const instanceId = await getInstanceId(admin, instanceName);
   await admin.from("whatsapp_messages").insert({
     instance_id: instanceId,
+    conversation_id: conversationId ?? null,
     remote_jid: remoteJid,
     direcao: "out",
     conteudo: reply,

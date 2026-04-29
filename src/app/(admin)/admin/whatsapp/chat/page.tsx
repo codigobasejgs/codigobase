@@ -37,7 +37,11 @@ export default function ChatPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text: msg }),
     });
-    if (res.ok) await loadMessages(selected);
+    if (res.ok) {
+      // Admin respondeu → IA pausada automaticamente
+      setSelected((prev) => prev ? { ...prev, ai_paused: true } : prev);
+      await loadMessages(selected);
+    }
     setSending(false);
   }
 
@@ -96,11 +100,17 @@ export default function ChatPage() {
                 <h2 className="font-semibold text-[#EDF2F7]">{selected.contact_name || selected.remote_jid}</h2>
                 <p className="text-xs text-[#7A8BA8]">{selected.remote_jid}</p>
               </div>
-              <button onClick={() => toggleAI(selected)} className="flex items-center gap-2 rounded-lg border border-[#243352] px-3 py-2 text-sm text-[#EDF2F7] hover:bg-[#111827]">
+              <button onClick={() => toggleAI(selected)} className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm transition hover:bg-[#111827] ${selected.ai_paused ? "border-emerald-500/30 text-emerald-400" : "border-[#243352] text-[#EDF2F7]"}`}>
                 {selected.ai_paused ? <PlayCircle className="h-4 w-4 text-emerald-400" /> : <PauseCircle className="h-4 w-4 text-yellow-400" />}
                 {selected.ai_paused ? "Retomar IA" : "Pausar IA"}
               </button>
             </header>
+            {selected.ai_paused && (
+              <div className="mx-4 mt-2 flex items-center gap-2 rounded-lg bg-yellow-500/10 px-3 py-2 text-xs text-yellow-400">
+                <PauseCircle className="h-3.5 w-3.5 flex-shrink-0" />
+                IA pausada nesta conversa. Você está respondendo manualmente. Clique &quot;Retomar IA&quot; para reativar.
+              </div>
+            )}
             <div className="flex-1 space-y-3 overflow-y-auto p-4">
               {messages.map((msg) => (
                 <div key={msg.id} className={`flex ${msg.direcao === "out" ? "justify-end" : "justify-start"}`}>

@@ -23,7 +23,7 @@ export async function POST(request: NextRequest, { params }: Params) {
     const instanceName = EVOLUTION_INSTANCE();
     const phoneNumber = remoteJid.split("@")[0];
 
-    await evolutionClient.sendMessage(instanceName, phoneNumber, text);
+    const res = await evolutionClient.sendMessage(instanceName, phoneNumber, text);
 
     // Store in DB
     const admin = createAdminClient();
@@ -33,23 +33,35 @@ export async function POST(request: NextRequest, { params }: Params) {
       .eq("instance_name_evolution", instanceName)
       .single();
 
+    // Salva a mensagem com o message_id da Evolution
+    // para que o webhook saiba que essa msg veio do nosso sistema
+    const messageId = res?.key?.id ?? null;
+
     await admin.from("whatsapp_messages").insert({
       instance_id: instance?.id ?? null,
       remote_jid: remoteJid,
       direcao: "out",
       conteudo: text,
       tipo: "texto",
+      message_id_evolution: messageId,
       status: "entregue",
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     });
 
+    // ── REGRA 3: Admin respondeu → pausar IA nessa conversa ──
     await admin
       .from("whatsapp_conversations")
-      .update({ last_message: text.slice(0, 200), last_message_at: new Date().toISOString(), unread_count: 0, updated_at: new Date().toISOString() })
+      .update({
+        last_message: text.slice(0, 200),
+        last_message_at: new Date().toISOString(),
+        unread_count: 0,
+        ai_paused: true,
+        updated_at: new Date().toISOString(),
+      })
       .eq("remote_jid", remoteJid);
 
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, ai_paused: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Erro ao enviar";
     return NextResponse.json({ error: message }, { status: 500 });
