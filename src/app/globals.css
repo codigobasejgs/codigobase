@@ -220,6 +220,91 @@
 }
 
 /* ==========================================================================
+   Blog post typography
+   ========================================================================== */
+.prose-blog {
+  color: #B0BAD0;
+  line-height: 1.8;
+  font-size: 1rem;
+}
+.prose-blog h2 {
+  margin-top: 2.5rem;
+  margin-bottom: 1rem;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #EDF2F7;
+}
+.prose-blog h3 {
+  margin-top: 2rem;
+  margin-bottom: 0.75rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #EDF2F7;
+}
+.prose-blog p {
+  margin-top: 0;
+  margin-bottom: 1.25rem;
+}
+.prose-blog a {
+  color: #00C8E8;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.prose-blog a:hover {
+  color: #22D3EE;
+}
+.prose-blog ul, .prose-blog ol {
+  margin-bottom: 1.25rem;
+  padding-left: 1.5rem;
+}
+.prose-blog ul { list-style-type: disc; }
+.prose-blog ol { list-style-type: decimal; }
+.prose-blog li { margin-bottom: 0.4rem; }
+.prose-blog code {
+  background: #0D1526;
+  border: 1px solid #1E2D45;
+  border-radius: 4px;
+  padding: 0.1em 0.4em;
+  font-size: 0.875em;
+  color: #00C8E8;
+  font-family: var(--font-mono, monospace);
+}
+.prose-blog pre {
+  background: #0D1526;
+  border: 1px solid #1E2D45;
+  border-radius: 12px;
+  padding: 1.25rem 1.5rem;
+  overflow-x: auto;
+  margin-bottom: 1.5rem;
+}
+.prose-blog pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #B0BAD0;
+  font-size: 0.875em;
+}
+.prose-blog blockquote {
+  border-left: 3px solid #00C8E8;
+  padding-left: 1.25rem;
+  margin-left: 0;
+  margin-bottom: 1.25rem;
+  color: #7A8BA8;
+  font-style: italic;
+}
+.prose-blog img {
+  border-radius: 12px;
+  margin: 1.5rem 0;
+  max-width: 100%;
+}
+.prose-blog hr {
+  border: none;
+  border-top: 1px solid #1E2D45;
+  margin: 2rem 0;
+}
+.prose-blog strong { color: #EDF2F7; }
+
+/* ==========================================================================
    Base layer — Global resets and defaults
    ========================================================================== */
 @layer base {
