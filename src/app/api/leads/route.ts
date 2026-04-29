@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { headers } from "next/headers";
 import { getResend } from "@/lib/resend/client";
+import { getEvolutionClient, EVOLUTION_INSTANCE } from "@/lib/evolution/client";
 
 function normalizeField(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -116,6 +117,20 @@ export async function POST(request: NextRequest) {
         });
       } catch (emailError) {
         console.error("Erro ao enviar notificação de lead:", emailError);
+      }
+    }
+
+    const adminWhatsApp = process.env.ADMIN_WHATSAPP;
+    const evolutionClient = getEvolutionClient();
+    if (evolutionClient && adminWhatsApp) {
+      try {
+        await evolutionClient.sendMessage(
+          EVOLUTION_INSTANCE(),
+          adminWhatsApp,
+          `Novo lead Código Base\n\nNome: ${nome}\nServiço: ${tipoServico}\nWhatsApp: ${whatsapp}\nE-mail: ${email}\n\nMensagem:\n${mensagem}`
+        );
+      } catch (whatsAppError) {
+        console.error("Erro ao enviar notificação WhatsApp:", whatsAppError);
       }
     }
 

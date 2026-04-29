@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { BarChart2, FileText, Image as ImageIcon, LayoutDashboard, LogOut, Menu, Users, X } from "lucide-react";
+import { BarChart2, FileText, Image as ImageIcon, LayoutDashboard, LogOut, Menu, MessageSquare, Users, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 const navItems = [
@@ -12,6 +12,7 @@ const navItems = [
   { href: "/admin/leads", label: "Leads", icon: Users },
   { href: "/admin/blog", label: "Blog", icon: FileText },
   { href: "/admin/media", label: "Mídia", icon: ImageIcon },
+  { href: "/admin/whatsapp", label: "WhatsApp", icon: MessageSquare },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
