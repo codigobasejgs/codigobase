@@ -104,10 +104,13 @@ class EvolutionAPI {
 
   async configureWebhook(instanceName: string, url: string, events: string[]): Promise<unknown> {
     return this.request(`/webhook/set/${instanceName}`, "POST", {
-      url,
-      webhook_by_events: true,
-      webhook_base64: false,
-      events,
+      webhook: {
+        enabled: true,
+        url,
+        webhookByEvents: false,
+        webhookBase64: false,
+        events,
+      },
     });
   }
 

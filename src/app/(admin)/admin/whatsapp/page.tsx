@@ -29,9 +29,12 @@ export default function WhatsAppPage() {
     setConnecting(true);
     const res = await fetch("/api/admin/whatsapp/instance/connect", { method: "POST" });
     const data = await res.json();
-    if (data.qrcode?.base64) setInstance((prev) => prev ? { ...prev, qrcode_url: data.qrcode.base64 } : prev);
+    if (data.qrcode?.base64) {
+      setInstance((prev) => prev ? { ...prev, qrcode_url: data.qrcode.base64, status: "connecting" } : prev);
+    }
     setConnecting(false);
-    await load();
+    // Reload after a short delay to get updated status
+    setTimeout(load, 2000);
   }
 
   async function configureWebhook() {

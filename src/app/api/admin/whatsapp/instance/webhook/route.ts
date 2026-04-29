@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { getEvolutionClient, EVOLUTION_INSTANCE } from "@/lib/evolution/client";
+import { headers } from "next/headers";
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,7 +13,15 @@ export async function POST(request: NextRequest) {
     if (!evolutionClient) return NextResponse.json({ error: "Evolution API não configurada" }, { status: 503 });
 
     const { webhookUrl } = await request.json().catch(() => ({}));
-    const url = webhookUrl || `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/evolution`;
+
+    // Build webhook URL from request origin or env
+    let url = webhookUrl;
+    if (!url) {
+      const headersList = await headers();
+      const host = headersList.get("host") || "www.codigobase.com.br";
+      const proto = headersList.get("x-forwarded-proto") || "https";
+      url = `${proto}://${host}/api/webhooks/evolution`;
+    }
 
     const instanceName = EVOLUTION_INSTANCE();
     await evolutionClient.configureWebhook(instanceName, url, [

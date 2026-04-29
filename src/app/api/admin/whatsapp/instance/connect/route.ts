@@ -13,9 +13,19 @@ export async function POST() {
 
     const instanceName = EVOLUTION_INSTANCE();
     const res = await evolutionClient.connectInstance(instanceName);
-    return NextResponse.json({ qrcode: res?.qrcode ?? null });
+
+    // Normalize QR code response — Evolution v2 returns different shapes
+    const raw = res as Record<string, unknown>;
+    let base64 = (res?.qrcode?.base64 ?? raw?.base64 ?? null) as string | null;
+
+    if (base64 && !base64.startsWith("data:")) {
+      base64 = `data:image/png;base64,${base64}`;
+    }
+
+    return NextResponse.json({ qrcode: base64 ? { base64 } : null, code: res?.qrcode?.code ?? raw?.code ?? null });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Erro ao conectar";
+    console.error("Connect error:", message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
