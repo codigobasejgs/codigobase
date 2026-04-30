@@ -19,12 +19,54 @@ function looksLikeBot(text: string): boolean {
   return BOT_PATTERNS.some((p) => p.test(text));
 }
 
+interface EvolutionMessage {
+  key: { id: string; fromMe: boolean; remoteJid: string };
+  message?: {
+    conversation?: string;
+    extendedTextMessage?: { text?: string };
+    imageMessage?: { caption?: string };
+  };
+  pushName?: string;
+  messageTimestamp?: number | string;
+  messageType?: string;
+}
+
+async function fetchEvolutionMessages(
+  instanceName: string,
+  remoteJid: string,
+  limit = 10
+): Promise<EvolutionMessage[]> {
+  try {
+    const res = await fetch(
+      `${process.env.EVOLUTION_API_BASE}/chat/findMessages/${instanceName}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          apikey: process.env.EVOLUTION_API_KEY || "",
+        },
+        body: JSON.stringify({ where: { key: { remoteJid } }, limit }),
+      }
+    );
+    const rawText = await res.text();
+    // Clean control characters that Evolution sometimes includes
+    const cleaned = rawText.replace(/[\x00-\x1F\x7F]/g, (ch) =>
+      ch === "\n" || ch === "\r" || ch === "\t" ? ch : ""
+    );
+    const parsed = JSON.parse(cleaned);
+    return parsed?.messages?.records || parsed?.records || [];
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Polling endpoint — busca mensagens novas diretamente da Evolution API
- * Chamado pelo frontend a cada 10s enquanto o admin está logado
- * Também pode ser chamado manualmente: GET /api/cron/poll-messages
+ * Duas estratégias:
+ * 1. Busca chats da Evolution API (findChats) para novos contatos
+ * 2. Busca mensagens novas para conversas JÁ existentes no nosso banco
  */
-export async function GET(request: NextRequest) {
+export async function GET(_request: NextRequest) {
   try {
     const admin = createAdminClient();
     const evolutionClient = getEvolutionClient();
@@ -34,7 +76,6 @@ export async function GET(request: NextRequest) {
 
     const instanceName = EVOLUTION_INSTANCE();
 
-    // Buscar instance_id do banco
     const { data: instanceData } = await admin
       .from("whatsapp_instances")
       .select("id")
@@ -46,100 +87,65 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Instância não encontrada" }, { status: 404 });
     }
 
-    // Buscar chats da Evolution
-    let chats: Array<{ id?: string; remoteJid?: string; name?: string; pushName?: string }> = [];
+    // ── ESTRATÉGIA 1: Buscar chats da Evolution para descobrir novos contatos ──
+    const jidsToCheck = new Set<string>();
+    const contactNames = new Map<string, string>();
+
     try {
       const rawChats = await evolutionClient.getChats(instanceName);
-      chats = (Array.isArray(rawChats) ? rawChats : []).map((c) => ({
-        id: c.id,
-        remoteJid: (c as unknown as Record<string, string>).remoteJid ?? c.id,
-        name: c.name,
-        pushName: (c as unknown as Record<string, string>).pushName,
-      }));
+      const chats = Array.isArray(rawChats) ? rawChats : [];
+      for (const chat of chats) {
+        const jid = (chat as unknown as Record<string, string>).remoteJid ?? chat.id ?? "";
+        if (jid.endsWith("@s.whatsapp.net") && jid !== "status@broadcast") {
+          jidsToCheck.add(jid);
+          const name = (chat as unknown as Record<string, string>).pushName || chat.name || "";
+          if (name) contactNames.set(jid, name);
+        }
+      }
     } catch (err) {
       console.error("[Poll] Error fetching chats:", err);
-      return NextResponse.json({ error: "Erro ao buscar chats" }, { status: 500 });
     }
 
-    // Filtrar apenas conversas privadas (não grupos, não broadcasts)
-    const privateChats = chats.filter((c) => {
-      const jid = c.remoteJid || c.id || "";
-      return jid.endsWith("@s.whatsapp.net") && jid !== "status@broadcast";
-    });
+    // ── ESTRATÉGIA 2: Buscar conversas existentes no nosso banco ──
+    const { data: existingConvs } = await admin
+      .from("whatsapp_conversations")
+      .select("remote_jid, contact_name")
+      .eq("instance_id", instanceId);
+
+    for (const conv of existingConvs ?? []) {
+      if (conv.remote_jid?.endsWith("@s.whatsapp.net")) {
+        jidsToCheck.add(conv.remote_jid);
+        if (conv.contact_name && !contactNames.has(conv.remote_jid)) {
+          contactNames.set(conv.remote_jid, conv.contact_name);
+        }
+      }
+    }
 
     let newMessages = 0;
     let processed = 0;
 
-    for (const chat of privateChats.slice(0, 30)) {
-      const remoteJid = chat.remoteJid || chat.id || "";
-      const contactName = chat.pushName || chat.name || remoteJid.split("@")[0];
+    for (const remoteJid of Array.from(jidsToCheck).slice(0, 50)) {
+      const contactName = contactNames.get(remoteJid) || remoteJid.split("@")[0];
 
-      // Buscar última mensagem que temos no banco para este contato
-      const { data: lastStored } = await admin
-        .from("whatsapp_messages")
-        .select("message_id_evolution, created_at")
-        .eq("remote_jid", remoteJid)
-        .eq("instance_id", instanceId)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      // Buscar mensagens recentes da Evolution para este chat
-      let messages: Array<{
-        key: { id: string; fromMe: boolean; remoteJid: string };
-        message?: { conversation?: string; extendedTextMessage?: { text?: string }; imageMessage?: { caption?: string } };
-        pushName?: string;
-        messageTimestamp?: number | string;
-        messageType?: string;
-      }> = [];
-
-      try {
-        const raw = await fetch(
-          `${process.env.EVOLUTION_API_BASE}/chat/findMessages/${instanceName}`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              apikey: process.env.EVOLUTION_API_KEY || "",
-            },
-            body: JSON.stringify({
-              where: { key: { remoteJid } },
-              limit: 10,
-            }),
-          }
-        );
-        const rawText = await raw.text();
-        // Clean control characters that Evolution sometimes includes
-        const cleaned = rawText.replace(/[\x00-\x1F\x7F]/g, (ch) =>
-          ch === "\n" || ch === "\r" || ch === "\t" ? ch : ""
-        );
-        try {
-          const parsed = JSON.parse(cleaned);
-          messages = parsed?.messages?.records || parsed?.records || [];
-        } catch {
-          // Fallback: try to extract with relaxed parsing
-          messages = [];
-        }
-      } catch {
+      // Buscar mensagens da Evolution
+      const messages = await fetchEvolutionMessages(instanceName, remoteJid, 10);
+      if (!messages.length) {
+        processed++;
         continue;
       }
-
-      if (!messages.length) continue;
 
       for (const msg of messages) {
         const messageId = msg.key?.id;
         if (!messageId) continue;
 
-        // Check if we already have this message
-        if (lastStored?.message_id_evolution === messageId) break; // Already processed from here
-
+        // Check se já temos esta mensagem
         const { data: existing } = await admin
           .from("whatsapp_messages")
           .select("id")
           .eq("message_id_evolution", messageId)
           .maybeSingle();
 
-        if (existing) continue; // Already stored
+        if (existing) continue;
 
         const fromMe = msg.key?.fromMe ?? false;
         const text =
@@ -157,7 +163,7 @@ export async function GET(request: NextRequest) {
             {
               instance_id: instanceId,
               remote_jid: remoteJid,
-              contact_name: contactName,
+              contact_name: msg.pushName || contactName,
               last_message: text.slice(0, 200),
               last_message_at: new Date().toISOString(),
               unread_count: fromMe ? 0 : 1,
@@ -198,12 +204,14 @@ export async function GET(request: NextRequest) {
 
         newMessages++;
 
-        // ── Admin respondeu pelo celular → pausar IA ──
+        // Admin respondeu pelo celular → pausar IA
         if (fromMe) {
-          await admin
-            .from("whatsapp_conversations")
-            .update({ ai_paused: true, updated_at: new Date().toISOString() })
-            .eq("id", convData?.id);
+          if (convData?.id) {
+            await admin
+              .from("whatsapp_conversations")
+              .update({ ai_paused: true, updated_at: new Date().toISOString() })
+              .eq("id", convData.id);
+          }
           continue;
         }
 
@@ -219,7 +227,7 @@ export async function GET(request: NextRequest) {
             continue;
           }
 
-          // Trigger AI reply (SYNC — must complete before function returns)
+          // Trigger AI reply (SYNC)
           try {
             await triggerAIReply(admin, remoteJid, instanceName, text, convData?.id);
           } catch (aiErr) {
@@ -232,6 +240,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       ok: true,
+      jids_checked: jidsToCheck.size,
       chats_checked: processed,
       new_messages: newMessages,
     });
@@ -304,27 +313,34 @@ async function triggerAIReply(
     if (conv?.ai_paused) return;
   }
 
+  console.log("[AI] Generating reply for", remoteJid, "text:", incomingText.slice(0, 50));
   const reply = await generateAIReply(messages, settings);
-  if (!reply) return;
+  if (!reply) {
+    console.log("[AI] No reply generated");
+    return;
+  }
+  console.log("[AI] Reply:", reply.slice(0, 100));
 
   const evolutionClient = getEvolutionClient();
   if (!evolutionClient) return;
 
-  await evolutionClient.sendMessage(instanceName, remoteJid.split("@")[0], reply);
+  const sendResult = await evolutionClient.sendMessage(instanceName, remoteJid.split("@")[0], reply);
+  console.log("[AI] Message sent, key:", (sendResult as { key?: { id?: string } })?.key?.id);
 
-  const { data: instanceData } = await admin
+  const { data: instData } = await admin
     .from("whatsapp_instances")
     .select("id")
     .eq("instance_name_evolution", instanceName)
     .single();
 
   await admin.from("whatsapp_messages").insert({
-    instance_id: instanceData?.id ?? null,
+    instance_id: instData?.id ?? null,
     conversation_id: conversationId ?? null,
     remote_jid: remoteJid,
     direcao: "out",
     conteudo: reply,
     tipo: "texto",
+    message_id_evolution: (sendResult as { key?: { id?: string } })?.key?.id ?? null,
     status: "entregue",
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
@@ -338,4 +354,6 @@ async function triggerAIReply(
       updated_at: new Date().toISOString(),
     })
     .eq("remote_jid", remoteJid);
+
+  console.log("[AI] Reply stored and conversation updated");
 }
