@@ -31,23 +31,8 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    // ── DEBUG LOG: Salva TODOS os webhooks recebidos ──
-    const debugPayload = JSON.stringify(body).slice(0, 4000);
-    console.log("[Webhook] Raw event:", debugPayload.slice(0, 800));
-    try {
-      await admin.from("whatsapp_messages").insert({
-        remote_jid: "debug@webhook.log",
-        direcao: "in",
-        conteudo: debugPayload,
-        tipo: "debug",
-        message_id_evolution: `WH_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        status: "debug",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      });
-    } catch (logErr) {
-      console.log("[Webhook] Debug log failed:", logErr);
-    }
+    // ── DEBUG LOG ──
+    console.log("[Webhook] Raw payload:", JSON.stringify(body).slice(0, 1500));
 
     // ── Determinar o evento ──
     // Evolution v2 pode enviar o evento como:
