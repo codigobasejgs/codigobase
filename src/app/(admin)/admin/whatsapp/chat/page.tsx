@@ -55,12 +55,21 @@ export default function ChatPage() {
     if (selected?.id === conv.id) setSelected({ ...conv, ai_paused: !conv.ai_paused });
   }
 
+  // Polling: busca mensagens novas da Evolution API
+  async function pollMessages() {
+    try {
+      await fetch("/api/cron/poll-messages");
+    } catch { /* silent */ }
+  }
+
   useEffect(() => {
-    loadConversations();
+    pollMessages().then(() => loadConversations());
     const timer = setInterval(() => {
-      loadConversations();
-      if (selected) loadMessages(selected);
-    }, 5000);
+      pollMessages().then(() => {
+        loadConversations();
+        if (selected) loadMessages(selected);
+      });
+    }, 10000);
     return () => clearInterval(timer);
   }, [selected?.remote_jid]);
 
