@@ -19,27 +19,64 @@ function looksLikeBot(text: string): boolean {
   return BOT_PATTERNS.some((p) => p.test(text));
 }
 
+// ── Normaliza o nome do evento (Evolution v1 vs v2 vs Baileys) ──
+function normalizeEvent(raw: string): string {
+  // Evolution pode enviar: MESSAGES_UPSERT, messages.upsert, MESSAGES.UPSERT, etc
+  return raw.toUpperCase().replace(/[.\-]/g, "_");
+}
+
 export async function POST(request: NextRequest) {
+  const admin = createAdminClient();
+
   try {
     const body = await request.json();
-    const { event, data } = body;
 
-    const admin = createAdminClient();
+    // ── DEBUG LOG: Salva TODOS os webhooks recebidos ──
+    const debugPayload = JSON.stringify(body).slice(0, 4000);
+    console.log("[Webhook] Raw event:", debugPayload.slice(0, 800));
+    try {
+      await admin.from("whatsapp_messages").insert({
+        remote_jid: "debug@webhook.log",
+        direcao: "in",
+        conteudo: debugPayload,
+        tipo: "debug",
+        message_id_evolution: `WH_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        status: "debug",
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      });
+    } catch (logErr) {
+      console.log("[Webhook] Debug log failed:", logErr);
+    }
+
+    // ── Determinar o evento ──
+    // Evolution v2 pode enviar o evento como:
+    // - { event: "MESSAGES_UPSERT", data: {...} }          (formato padrão)
+    // - { event: "messages.upsert", data: {...} }          (formato Baileys)
+    // - { event: "MESSAGES_UPSERT", instance: "...", ... } (evento achatado)
+    // - Root-level message fields sem "event" wrapper
+    const rawEvent: string = body?.event ?? body?.type ?? "";
+    const event = normalizeEvent(rawEvent);
+
+    // O "data" pode estar em body.data ou diretamente no body
+    const data = body?.data ?? body;
 
     // ── QR Code ──
     if (event === "QRCODE_UPDATED") {
-      const qrBase64 = data?.qrcode?.base64;
+      const qrBase64 = data?.qrcode?.base64 ?? data?.qrcode;
       if (qrBase64) {
+        const instanceName = data?.instance ?? body?.instance ?? EVOLUTION_INSTANCE();
         await admin
           .from("whatsapp_instances")
           .update({ qrcode_url: qrBase64, status: "aguardando_qr", updated_at: new Date().toISOString() })
-          .eq("instance_name_evolution", data.instance ?? EVOLUTION_INSTANCE());
+          .eq("instance_name_evolution", instanceName);
       }
     }
 
     // ── Conexão ──
     if (event === "CONNECTION_UPDATE") {
-      const state = data?.state ?? data?.connectionStatus;
+      const state = data?.state ?? data?.connectionStatus ?? data?.statusReason;
+      const instanceName = data?.instance ?? body?.instance ?? EVOLUTION_INSTANCE();
       const statusMap: Record<string, string> = {
         open: "conectado",
         close: "desconectado",
@@ -48,24 +85,40 @@ export async function POST(request: NextRequest) {
       await admin
         .from("whatsapp_instances")
         .update({ status: statusMap[state] ?? state, updated_at: new Date().toISOString() })
-        .eq("instance_name_evolution", data.instance ?? EVOLUTION_INSTANCE());
+        .eq("instance_name_evolution", instanceName);
     }
 
     // ── Mensagens ──
-    if (event === "MESSAGES_UPSERT") {
-      const messages = Array.isArray(data?.messages) ? data.messages : [data?.message].filter(Boolean);
+    if (event === "MESSAGES_UPSERT" || event === "MESSAGES_UPDATE" || event === "SEND_MESSAGE") {
+      // Evolution pode enviar como array ou objeto único
+      const messages = Array.isArray(data?.messages)
+        ? data.messages
+        : data?.message
+          ? [data.message]
+          : Array.isArray(data)
+            ? data
+            : [data];
 
       for (const msg of messages) {
+        if (!msg?.key) continue;
+
         const remoteJid: string = msg?.key?.remoteJid ?? "";
         const fromMe: boolean = msg?.key?.fromMe ?? false;
         const messageId: string = msg?.key?.id ?? "";
-        const instanceName: string = data?.instance ?? EVOLUTION_INSTANCE();
-        const pushName: string = msg?.pushName ?? "";
+        const instanceName: string = data?.instance ?? body?.instance ?? EVOLUTION_INSTANCE();
+        const pushName: string = msg?.pushName ?? data?.pushName ?? "";
 
         const text: string =
           msg?.message?.conversation ??
           msg?.message?.extendedTextMessage?.text ??
           msg?.message?.imageMessage?.caption ??
+          msg?.message?.videoMessage?.caption ??
+          msg?.message?.buttonsResponseMessage?.selectedDisplayText ??
+          msg?.message?.listResponseMessage?.title ??
+          msg?.message?.templateButtonReplyMessage?.selectedDisplayText ??
+          // Evolution v2 pode ter texto em nível diferente
+          msg?.body ??
+          msg?.text ??
           "";
 
         // ──────────────────────────────────────────────
@@ -82,8 +135,6 @@ export async function POST(request: NextRequest) {
         //          → pausar IA nessa conversa
         // ──────────────────────────────────────────────
         if (fromMe && text) {
-          // Verificar se essa mensagem foi enviada pelo nosso sistema
-          // (se message_id_evolution já existe, foi o nosso send endpoint)
           const { data: existingMsg } = await admin
             .from("whatsapp_messages")
             .select("id")
@@ -91,8 +142,6 @@ export async function POST(request: NextRequest) {
             .maybeSingle();
 
           if (!existingMsg) {
-            // Mensagem fromMe que NÃO veio do nosso sistema = admin
-            // respondeu pelo WhatsApp do celular → pausar IA
             await admin
               .from("whatsapp_conversations")
               .update({ ai_paused: true, updated_at: new Date().toISOString() })
@@ -127,20 +176,28 @@ export async function POST(request: NextRequest) {
             .eq("id", convData.id);
         }
 
-        // Store message
-        await admin.from("whatsapp_messages").insert({
-          instance_id: instanceId,
-          conversation_id: convData?.id ?? null,
-          remote_jid: remoteJid,
-          contact_name: pushName || null,
-          direcao: fromMe ? "out" : "in",
-          conteudo: text,
-          tipo: "texto",
-          message_id_evolution: messageId,
-          status: "entregue",
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
+        // Store message (skip if already stored by our send endpoint)
+        const { data: existing } = await admin
+          .from("whatsapp_messages")
+          .select("id")
+          .eq("message_id_evolution", messageId)
+          .maybeSingle();
+
+        if (!existing && messageId) {
+          await admin.from("whatsapp_messages").insert({
+            instance_id: instanceId,
+            conversation_id: convData?.id ?? null,
+            remote_jid: remoteJid,
+            contact_name: pushName || null,
+            direcao: fromMe ? "out" : "in",
+            conteudo: text,
+            tipo: "texto",
+            message_id_evolution: messageId,
+            status: "entregue",
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          });
+        }
 
         // ──────────────────────────────────────────────
         // Decidir se dispara IA
@@ -155,7 +212,7 @@ export async function POST(request: NextRequest) {
                 .eq("id", convData.id);
             }
             console.log(`[AI] Bot detected for ${remoteJid}, pausing AI`);
-            continue; // Não responde
+            continue;
           }
 
           triggerAIReply(admin, remoteJid, instanceName, text, convData?.id).catch(console.error);
@@ -194,7 +251,7 @@ async function triggerAIReply(
 
   if (!aiConfig || !aiConfig.api_key) return;
 
-  // Re-check ai_paused right before replying (admin may have responded during delay)
+  // Re-check ai_paused right before replying
   if (conversationId) {
     const { data: conv } = await admin
       .from("whatsapp_conversations")
@@ -234,7 +291,7 @@ async function triggerAIReply(
   const delay = aiConfig.auto_reply_delay_ms ?? 3000;
   await new Promise((r) => setTimeout(r, delay));
 
-  // Re-check AGAIN after delay (admin may have responded during the wait)
+  // Re-check AGAIN after delay
   if (conversationId) {
     const { data: conv } = await admin
       .from("whatsapp_conversations")
@@ -246,11 +303,6 @@ async function triggerAIReply(
 
   const reply = await generateAIReply(messages, settings);
   if (!reply) return;
-
-  // ── REGRA 2 (extra): checar se a PRÓPRIA resposta parece de bot ──
-  // Isso não deveria acontecer, mas é uma segurança extra
-  // Se a IA gerou algo que o outro lado identificaria como bot, tudo bem — enviamos.
-  // O que importa é detectar o OUTRO como bot.
 
   const evolutionClient = getEvolutionClient();
   if (!evolutionClient) return;
