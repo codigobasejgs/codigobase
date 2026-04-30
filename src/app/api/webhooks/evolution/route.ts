@@ -200,7 +200,11 @@ export async function POST(request: NextRequest) {
             continue;
           }
 
-          triggerAIReply(admin, remoteJid, instanceName, text, convData?.id).catch(console.error);
+          try {
+            await triggerAIReply(admin, remoteJid, instanceName, text, convData?.id);
+          } catch (aiErr) {
+            console.error("[Webhook] AI reply error:", aiErr);
+          }
         }
       }
     }

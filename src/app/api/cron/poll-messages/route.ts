@@ -219,8 +219,12 @@ export async function GET(request: NextRequest) {
             continue;
           }
 
-          // Trigger AI reply (async)
-          triggerAIReply(admin, remoteJid, instanceName, text, convData?.id).catch(console.error);
+          // Trigger AI reply (SYNC — must complete before function returns)
+          try {
+            await triggerAIReply(admin, remoteJid, instanceName, text, convData?.id);
+          } catch (aiErr) {
+            console.error("[Poll] AI reply error:", aiErr);
+          }
         }
       }
       processed++;
