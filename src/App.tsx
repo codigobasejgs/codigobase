@@ -9,6 +9,7 @@ import {
   Headphones, CreditCard, Award, Sun, Moon, Search, ShoppingBag, Calendar, Briefcase, Info,
   Copy, Printer
 } from 'lucide-react';
+import AdminApp from './AdminApp';
 
 const WA_LINK = "https://wa.me/5511986262240";
 
@@ -460,6 +461,10 @@ const RANDOM_NOTIFICATIONS = [
 
 // --- Main App ---
 export default function App() {
+  if (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin')) {
+    return <AdminApp />;
+  }
+
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showBackToTop, setShowBackToTop] = useState(false);
