@@ -226,7 +226,7 @@ Deno.serve(async (req) => {
     const mediaPart = await fetchMediaAsPart(info);
     const model = settings?.model || GEMINI_MODEL;
     const apiKey = settings?.gemini_api_key || GEMINI_API_KEY;
-    const aiPrompt = `${settings.system_prompt}\n\nMensagem do cliente: ${info.text || '[mídia enviada sem texto]'}\n\nSe houver mídia anexada, analise imagem/áudio/documento e responda naturalmente. Se o cliente quiser humano, diga que vai chamar um especialista e não continue insistindo.`;
+    const aiPrompt = `${settings.system_prompt}\n\nREGRAS DE COMPORTAMENTO PRIORITÁRIAS:\n${settings?.behavior_rules || 'Tamanho da resposta: curto/médio, estilo WhatsApp. Objetivo: qualificar o cliente antes de vender. Fluxo: uma pergunta por vez, sem textão. Não começar listando tudo; comece perguntando o que o cliente precisa e aprofunde somente no serviço demonstrado.'}\n\nMensagem do cliente: ${info.text || '[mídia enviada sem texto]'}\n\nSe houver mídia anexada, analise imagem/áudio/documento e responda naturalmente. Se o cliente quiser humano, diga que vai chamar um especialista e não continue insistindo.`;
     const aiText = await askGemini(aiPrompt, mediaPart, apiKey, model);
 
     if (aiText) {
