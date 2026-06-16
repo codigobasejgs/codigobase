@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { CalendarClock, ImagePlus, RefreshCw, Send, Trash2, UploadCloud } from 'lucide-react';
+import { CalendarClock, ImagePlus, RefreshCw, Send, Sparkles, Trash2, UploadCloud } from 'lucide-react';
 import { supabase, supabaseFunctionsUrl } from './lib/supabaseClient';
 
 type StatusPost = {
@@ -33,6 +33,7 @@ export default function StatusScheduler({ session }: { session: any }) {
   const [repeatType, setRepeatType] = useState<'once' | 'daily' | 'weekly'>('once');
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [generatingCaption, setGeneratingCaption] = useState(false);
   const [notice, setNotice] = useState('');
 
   async function loadPosts() {
@@ -62,6 +63,39 @@ export default function StatusScheduler({ session }: { session: any }) {
     if (error) throw error;
     const { data } = supabase.storage.from('whatsapp-status-media').getPublicUrl(path);
     return { media_url: data.publicUrl, media_path: path, media_mime_type: file.type };
+  }
+
+  function fileToBase64(input: File) {
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result || '').split(',')[1] || '');
+      reader.onerror = reject;
+      reader.readAsDataURL(input);
+    });
+  }
+
+  async function generateCaption() {
+    if (!file) return setNotice('Anexe uma imagem primeiro.');
+    if (!file.type.startsWith('image/')) return setNotice('A IA gera legenda apenas para imagens.');
+    if (file.size > 5 * 1024 * 1024) return setNotice('Imagem muito grande para análise da IA. Use até 5 MB.');
+    setGeneratingCaption(true);
+    setNotice('Gerando legenda com IA...');
+    try {
+      const imageBase64 = await fileToBase64(file);
+      const res = await fetch(`${supabaseFunctionsUrl}/generate-status-caption`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ imageBase64, mimeType: file.type, title }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok || !data.caption) throw new Error(data.error || 'Falha ao gerar legenda');
+      setCaption(data.caption);
+      setNotice('Legenda gerada com IA. Revise antes de agendar.');
+    } catch (err: any) {
+      setNotice(`Erro ao gerar legenda: ${err.message || err}`);
+    } finally {
+      setGeneratingCaption(false);
+    }
   }
 
   async function createPost(e: React.FormEvent) {
@@ -143,8 +177,8 @@ export default function StatusScheduler({ session }: { session: any }) {
         <label className="space-y-2"><span className="text-sm font-bold text-gray-200">Data e horário</span><input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#05070D] px-3 py-3 outline-none focus:border-orange-400" /></label>
         <label className="space-y-2"><span className="text-sm font-bold text-gray-200">Repetição</span><select value={repeatType} onChange={(e) => setRepeatType(e.target.value as any)} className="w-full rounded-xl border border-white/10 bg-[#05070D] px-3 py-3 outline-none focus:border-orange-400"><option value="once">Uma vez</option><option value="daily">Todos os dias</option><option value="weekly">Semanal</option></select></label>
         <label className="space-y-2"><span className="text-sm font-bold text-gray-200">Imagem ou vídeo</span><div className="flex items-center gap-3 rounded-xl border border-white/10 bg-[#05070D] px-3 py-3"><ImagePlus size={18} className="text-orange-300" /><input type="file" accept="image/png,image/jpeg,image/webp,video/mp4" onChange={(e) => setFile(e.target.files?.[0] || null)} className="min-w-0 text-sm" /></div></label>
-        <label className="space-y-2 lg:col-span-2"><span className="text-sm font-bold text-gray-200">Legenda do status</span><textarea value={caption} onChange={(e) => setCaption(e.target.value)} className="min-h-[110px] w-full rounded-xl border border-white/10 bg-[#05070D] p-3 outline-none focus:border-orange-400" placeholder="Texto que acompanha a imagem/vídeo no status..." /></label>
-        <div className="flex flex-wrap items-center gap-3 lg:col-span-2"><button disabled={loading || (!caption.trim() && !file)} className="rounded-xl bg-orange-400 px-5 py-3 font-bold text-black disabled:opacity-50"><UploadCloud size={18} className="inline mr-2" />Agendar status</button>{notice && <p className="text-sm text-orange-100">{notice}</p>}</div>
+        <label className="space-y-2 lg:col-span-2"><span className="flex flex-wrap items-center justify-between gap-3 text-sm font-bold text-gray-200"><span>Legenda do status</span><button type="button" onClick={generateCaption} disabled={generatingCaption || !file || !file.type.startsWith('image/')} className="rounded-xl border border-purple-400/30 bg-purple-400/10 px-3 py-2 text-xs font-bold text-purple-100 disabled:opacity-40"><Sparkles size={15} className="inline mr-1" />{generatingCaption ? 'Gerando...' : 'Gerar legenda com IA'}</button></span><textarea value={caption} onChange={(e) => setCaption(e.target.value)} className="min-h-[110px] w-full rounded-xl border border-white/10 bg-[#05070D] p-3 outline-none focus:border-orange-400" placeholder="Texto que acompanha a imagem/vídeo no status..." /></label>
+        <div className="flex flex-wrap items-center gap-3 lg:col-span-2"><button disabled={loading || generatingCaption || (!caption.trim() && !file)} className="rounded-xl bg-orange-400 px-5 py-3 font-bold text-black disabled:opacity-50"><UploadCloud size={18} className="inline mr-2" />Agendar status</button>{notice && <p className="text-sm text-orange-100">{notice}</p>}</div>
       </form>
 
       <div className="mt-6 grid gap-3">
