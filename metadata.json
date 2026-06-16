@@ -1,0 +1,6 @@
+{
+  "name": "Código-Base Landing Page",
+  "description": "Uma landing page premium para a Código-Base, focada em conversão para WhatsApp, oferecendo soluções de software, hardware, IA e marketing digital.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
