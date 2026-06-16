@@ -1,0 +1,10 @@
+project_id = "vzfzykzmxyqecfrsewao"
+
+[functions.evolution-webhook]
+verify_jwt = false
+
+[functions.send-whatsapp-message]
+verify_jwt = true
+
+[functions.admin-analytics]
+verify_jwt = true
