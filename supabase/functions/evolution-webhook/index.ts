@@ -116,15 +116,15 @@ async function fetchMediaAsPart(info: MessageInfo) {
   }
 }
 
-async function askGemini(prompt: string, mediaPart: any) {
+async function askGemini(prompt: string, mediaPart: any, apiKey: string, model: string) {
   const parts: any[] = [{ text: prompt }];
   if (mediaPart) parts.push(mediaPart);
 
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`, {
+  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'x-goog-api-key': GEMINI_API_KEY,
+      'x-goog-api-key': apiKey,
     },
     body: JSON.stringify({
       contents: [{ role: 'user', parts }],
@@ -224,8 +224,10 @@ Deno.serve(async (req) => {
     }
 
     const mediaPart = await fetchMediaAsPart(info);
+    const model = settings?.model || GEMINI_MODEL;
+    const apiKey = settings?.gemini_api_key || GEMINI_API_KEY;
     const aiPrompt = `${settings.system_prompt}\n\nMensagem do cliente: ${info.text || '[mídia enviada sem texto]'}\n\nSe houver mídia anexada, analise imagem/áudio/documento e responda naturalmente. Se o cliente quiser humano, diga que vai chamar um especialista e não continue insistindo.`;
-    const aiText = await askGemini(aiPrompt, mediaPart);
+    const aiText = await askGemini(aiPrompt, mediaPart, apiKey, model);
 
     if (aiText) {
       await sendWhatsAppText(info.remoteJid, aiText);
