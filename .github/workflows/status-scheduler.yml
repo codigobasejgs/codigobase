@@ -1,0 +1,16 @@
+name: WhatsApp Status Scheduler
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+jobs:
+  run-scheduler:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call Supabase status scheduler
+        run: |
+          curl --fail --silent --show-error --max-time 60 "$STATUS_CRON_URL"
+        env:
+          STATUS_CRON_URL: ${{ secrets.STATUS_CRON_URL }}

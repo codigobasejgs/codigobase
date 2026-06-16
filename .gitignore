@@ -5,5 +5,8 @@ coverage/
 .DS_Store
 *.log
 .webhook-secret.local
+.status-cron-secret.local
 .env*
 !.env.example
+
+.vercel
