@@ -1,4 +1,4 @@
-const CACHE_NAME = 'codigo-base-pwa-v1';
+const CACHE_NAME = 'codigo-base-pwa-v2';
 const APP_SHELL = [
   '/',
   '/index.html',

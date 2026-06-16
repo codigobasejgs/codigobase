@@ -11,8 +11,11 @@ type StatusPost = {
   media_mime_type: string | null;
   scheduled_at: string;
   repeat_type: 'once' | 'daily' | 'weekly';
-  status: 'scheduled' | 'publishing' | 'published' | 'error' | 'cancelled';
+  status: 'scheduled' | 'publishing' | 'pending_confirmation' | 'published' | 'error' | 'cancelled';
   published_at: string | null;
+  last_attempt_at: string | null;
+  publishing_started_at: string | null;
+  attempt_count: number | null;
   error_message: string | null;
   created_at: string;
 };
@@ -42,6 +45,11 @@ export default function StatusScheduler({ session }: { session: any }) {
   }
 
   useEffect(() => { loadPosts(); }, []);
+  useEffect(() => {
+    if (!posts.some((post) => ['publishing', 'pending_confirmation'].includes(post.status))) return;
+    const timer = window.setInterval(loadPosts, 10000);
+    return () => window.clearInterval(timer);
+  }, [posts]);
 
   async function uploadMedia() {
     if (!file) return { media_url: null, media_path: null, media_mime_type: null };
@@ -96,7 +104,7 @@ export default function StatusScheduler({ session }: { session: any }) {
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || 'Falha ao publicar');
-      setNotice('Status enviado para publicação.');
+      setNotice(data.status === 'pending_confirmation' ? 'Status enviado; aguardando confirmação da Evolution.' : 'Status publicado com sucesso.');
       await loadPosts();
     } catch (err: any) {
       setNotice(`Erro ao publicar: ${err.message || err}`);
@@ -114,6 +122,7 @@ export default function StatusScheduler({ session }: { session: any }) {
   const badge = (status: string) => ({
     scheduled: 'bg-cyan-400/10 text-cyan-200 border-cyan-400/20',
     publishing: 'bg-orange-400/10 text-orange-200 border-orange-400/20',
+    pending_confirmation: 'bg-yellow-400/10 text-yellow-200 border-yellow-400/20',
     published: 'bg-green-400/10 text-green-200 border-green-400/20',
     error: 'bg-red-400/10 text-red-200 border-red-400/20',
     cancelled: 'bg-gray-400/10 text-gray-200 border-gray-400/20',
@@ -148,11 +157,13 @@ export default function StatusScheduler({ session }: { session: any }) {
               <div className="flex flex-wrap items-center gap-2"><h3 className="font-bold text-white">{post.title || 'Status'}</h3><span className={`rounded-full border px-2 py-0.5 text-xs ${badge(post.status)}`}>{post.status}</span><span className="rounded-full border border-white/10 px-2 py-0.5 text-xs text-gray-300">{post.repeat_type}</span></div>
               <p className="mt-1 text-sm text-gray-300 line-clamp-2">{post.caption || 'Sem legenda'}</p>
               <p className="mt-2 text-xs text-gray-500">Agendado: {new Date(post.scheduled_at).toLocaleString('pt-BR')} {post.published_at ? `• Publicado: ${new Date(post.published_at).toLocaleString('pt-BR')}` : ''}</p>
+              <p className="mt-1 text-xs text-gray-600">Tentativas: {post.attempt_count || 0}{post.last_attempt_at ? ` • Última: ${new Date(post.last_attempt_at).toLocaleString('pt-BR')}` : ''}</p>
+              {post.status === 'pending_confirmation' && <p className="mt-2 rounded-lg border border-yellow-500/20 bg-yellow-500/10 p-2 text-xs text-yellow-100">Evolution demorou para confirmar. Não republicar automaticamente para evitar duplicidade; confira no WhatsApp.</p>}
               {post.error_message && <p className="mt-2 rounded-lg border border-red-500/20 bg-red-500/10 p-2 text-xs text-red-200">{post.error_message}</p>}
             </div>
             <div className="flex items-center gap-2 md:flex-col md:items-end">
               <button disabled={loading || !['scheduled','error'].includes(post.status)} onClick={() => publishNow(post)} className="rounded-xl bg-cyan-400 px-3 py-2 text-sm font-bold text-black disabled:opacity-40"><Send size={15} className="inline mr-1" />Publicar</button>
-              <button disabled={post.status === 'published'} onClick={() => cancelPost(post)} className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-100 disabled:opacity-40"><Trash2 size={15} className="inline mr-1" />Cancelar</button>
+              <button disabled={['published','publishing','pending_confirmation'].includes(post.status)} onClick={() => cancelPost(post)} className="rounded-xl border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-100 disabled:opacity-40"><Trash2 size={15} className="inline mr-1" />Cancelar</button>
             </div>
           </div>
         ))}

@@ -11,6 +11,6 @@ jobs:
     steps:
       - name: Call Supabase status scheduler
         run: |
-          curl --fail --silent --show-error --max-time 60 "$STATUS_CRON_URL"
+          curl --fail --silent --show-error --max-time 180 "$STATUS_CRON_URL"
         env:
           STATUS_CRON_URL: ${{ secrets.STATUS_CRON_URL }}
