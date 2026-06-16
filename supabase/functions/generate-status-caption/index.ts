@@ -25,7 +25,14 @@ function cleanCaption(text: string) {
     .replace(/\s+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
-    .slice(0, 280);
+    .slice(0, 520);
+}
+
+function isBadCaption(text: string) {
+  const lower = text.toLowerCase().trim();
+  const banned = ['seu negócio merece', 'sua empresa cresce', 'transforme sua empresa', 'tenha um site profissional', 'presença digital que ele'];
+  const weakEnd = [' como uma', ' para sua', ' com uma', ' de uma', ' que ele', ' que ela', ' e sistemas funcionando como uma'];
+  return text.length < 90 || banned.some((item) => lower.includes(item)) || weakEnd.some((end) => lower.endsWith(end)) || !/[✨🚀💡📲🔥⚡️🎯]/.test(text);
 }
 
 async function requireUser(authHeader: string) {
@@ -45,11 +52,11 @@ async function askGemini(prompt: string, imageBase64: string, mimeType: string, 
       contents: [{
         role: 'user',
         parts: [
-          { text: prompt },
           { inline_data: { mime_type: mimeType, data: imageBase64 } },
+          { text: prompt },
         ],
       }],
-      generationConfig: { temperature: 0.75, maxOutputTokens: 160 },
+      generationConfig: { temperature: 0.95, maxOutputTokens: 260 },
     }),
   });
 
@@ -81,27 +88,53 @@ Deno.serve(async (req) => {
 
     const { data: settings } = await adminSupabase.from('cb_ai_settings').select('*').eq('id', 1).single();
     const apiKey = settings?.gemini_api_key || GEMINI_API_KEY;
-    const model = settings?.model || GEMINI_MODEL;
+    const configuredModel = settings?.model || GEMINI_MODEL;
+    const model = configuredModel?.startsWith('gemini-3') ? 'gemini-2.5-flash' : configuredModel;
     if (!apiKey) return json({ ok: false, error: 'Gemini API Key não configurada.' }, { status: 500 });
 
-    const prompt = `Analise a imagem anexada e crie uma legenda caprichada para Status do WhatsApp da Código Base.
+    const prompt = `Você é DIRETOR DE CRIAÇÃO de uma agência premium. Crie uma legenda para STATUS DO WHATSAPP da Código Base usando a IMAGEM como referência principal.
 
-Contexto da empresa: sites, sistemas, automações, inteligência artificial, dashboards, aplicativos e soluções digitais para negócios.
+PASSO INTERNO (não mostrar): descreva mentalmente 3 elementos visuais reais da imagem: objeto/tela/texto/cor/composição/serviço demonstrado. A legenda final precisa usar pelo menos 1 desses elementos.
+
+EMPRESA:
+Código Base cria sites, sistemas, automações, IA, dashboards, aplicativos e soluções digitais para empresas venderem mais, parecerem mais profissionais e ganharem tempo.
 ${title ? `Título interno informado: ${title}` : ''}
 
-Regras:
-- Português do Brasil.
-- Tom premium, moderno, humano e persuasivo.
-- Máximo 2 linhas.
-- Inclua CTA leve quando fizer sentido.
-- Use no máximo 1 emoji.
-- Não invente preço, telefone, data, garantia ou informação que não aparece.
-- Se a imagem for genérica, conecte com transformação digital e presença online.
-- Retorne somente a legenda, sem aspas e sem explicação.`;
+NÃO ACEITO:
+- Frases incompletas.
+- Frases secas/genéricas.
+- "Seu negócio merece..."
+- "Sua empresa cresce..."
+- "Transforme sua empresa..."
+- "Seu site e sistemas funcionando como..."
+- Texto que poderia servir para qualquer imagem.
+
+ENTREGUE EXATAMENTE 1 LEGENDA NESSE FORMATO:
+Linha 1: gancho visual citando algo percebido na imagem.
+Linha 2: benefício concreto para o cliente/empresa.
+Linha 3: CTA curto e natural.
+
+REGRAS:
+- 3 linhas completas.
+- 110 a 240 caracteres no total.
+- Exatamente 1 emoji.
+- Português BR.
+- Estilo: premium, impactante, desejo, brilho nos olhos.
+- Não invente preço, telefone, datas ou promessas absolutas.
+- Se houver texto na imagem, aproveite o sentido desse texto.
+- Retorne só a legenda final.`;
 
     const rawCaption = await askGemini(prompt, imageBase64, mimeType, apiKey, model);
-    const caption = cleanCaption(rawCaption);
-    if (!caption) throw new Error('Gemini retornou legenda vazia.');
+    let caption = cleanCaption(rawCaption);
+
+    if (isBadCaption(caption)) {
+      const retryPrompt = `${prompt}\n\nA tentativa anterior ficou fraca/incompleta: "${caption}". Refaça melhor: cite um elemento visual da imagem, use exatamente 1 emoji, 3 linhas completas, CTA final. Não use frases genéricas.`;
+      caption = cleanCaption(await askGemini(retryPrompt, imageBase64, mimeType, apiKey, model));
+    }
+
+    if (!caption || isBadCaption(caption)) {
+      caption = `O visual da sua marca precisa causar impacto antes mesmo da primeira conversa. ✨\nSites, sistemas e IA com acabamento profissional para transmitir confiança.\nVamos criar algo nesse nível para sua empresa?`;
+    }
 
     return json({ ok: true, caption, model });
   } catch (error) {
