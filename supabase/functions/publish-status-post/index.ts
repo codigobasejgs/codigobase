@@ -86,7 +86,7 @@ async function sendStatus(post: any, lockId: string): Promise<PublishOutcome> {
   } catch (error: any) {
     clearTimeout(timeout);
     if (error?.name === 'AbortError' || String(error?.message || error).includes('aborted')) {
-      return { status: 'pending_confirmation', warning: `Evolution timeout after ${SEND_TIMEOUT_MS}ms; request may have been accepted. Not retrying automatically.`, duration_ms: Date.now() - started };
+      return { status: 'published', warning: `Evolution timeout after ${SEND_TIMEOUT_MS}ms; request was treated as posted to avoid false error/duplicate retry.`, duration_ms: Date.now() - started };
     }
     throw error;
   }
