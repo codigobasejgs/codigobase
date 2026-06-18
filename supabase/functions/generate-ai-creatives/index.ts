@@ -13,8 +13,8 @@ const GEMINI_IMAGE_MODEL = Deno.env.get('GEMINI_IMAGE_MODEL') || 'gemini-3-pro-i
 const BRAND_LOGO_URL = Deno.env.get('BRAND_LOGO_URL') || 'https://www.codigobase.com.br/logo.png';
 const BRAND_SITE = Deno.env.get('BRAND_SITE') || 'www.codigobase.com.br';
 const BRAND_WHATSAPP = Deno.env.get('BRAND_WHATSAPP') || '(11) 98626-2240';
-const BRAND_EMAIL = Deno.env.get('BRAND_EMAIL') || 'projetos.jgs@gmail.com';
-const BRAND_INSTAGRAM = Deno.env.get('BRAND_INSTAGRAM') || '@codigobase';
+const BRAND_EMAIL = Deno.env.get('BRAND_EMAIL') || 'Projetosti.jgs@gmail.com';
+const BRAND_INSTAGRAM = Deno.env.get('BRAND_INSTAGRAM') || '@codigo.base';
 const BRAND_FONT_URL = Deno.env.get('BRAND_FONT_URL') || 'https://raw.githubusercontent.com/google/fonts/main/ofl/inter/Inter%5Bopsz,wght%5D.ttf';
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
@@ -24,15 +24,76 @@ function bytesFromBase64(b64: string) { const bin = atob(b64); const bytes = new
 function slug(text: string) { return text.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase().slice(0, 80); }
 function caption(themeCategory: string, themeOption: string, draftType: string) { return `✨ ${themeOption.toUpperCase()} COM TECNOLOGIA DE PONTA! ✨\n\nA CÓDIGO-BASE transforma ${themeCategory} em soluções digitais que chamam atenção, geram autoridade e ajudam sua empresa a vender mais com estratégia.\n\n${draftType === 'carousel' ? 'ARRASTE PARA O LADO E VEJA COMO APLICAR ISSO NO SEU NEGÓCIO! ➡️' : 'RESPONDA ESTE STORY E DESCUBRA COMO APLICAR ISSO NO SEU NEGÓCIO! 🚀'}\n\n━━━━━━━━━━━━━━━━━━━━━━━━\n\n💡 O QUE VOCÊ PODE GANHAR:\n\n✅ Atendimento mais rápido e profissional\n✅ Menos tarefas manuais no dia a dia\n✅ Mais presença digital, leads e oportunidades\n✅ Tecnologia sob medida para crescer com resultado\n\n━━━━━━━━━━━━━━━━━━━━━━━━\n\n📲 FALE COM A CÓDIGO-BASE:\n\n🌐 Site: ${BRAND_SITE}\n📱 WhatsApp: ${BRAND_WHATSAPP}\n📸 Instagram: ${BRAND_INSTAGRAM}\n📧 E-mail: ${BRAND_EMAIL}\n\n#CodigoBase #Tecnologia #InteligenciaArtificial #MarketingDigital #DesenvolvimentoDeSoftware #SaaS #PowerBI #ChatbotIA #TransformacaoDigital #Resultados #Inovacao #Negocios #SaoPaulo #Brasil #Tech`; }
 function imagePrompt(themeCategory: string, themeOption: string, draftType: string, index: number) {
-  const angles = ['headline hero ad with 3D phone and AI chat bubbles', 'conversion-focused benefits card with SaaS dashboard', 'premium agency pitch with automation workflow', 'before-and-after business transformation scene', 'executive tech dashboard with social growth elements'];
-  const headline = themeOption === 'Vendas' ? 'VENDA MAIS COM IA' : themeOption.toUpperCase().slice(0, 28);
-  return `Create a vertical 9:16 elite Brazilian social media marketing creative for CÓDIGO BASE, a premium technology agency. Theme: ${themeCategory} / ${themeOption}. Asset type: ${draftType}, slide ${index + 1}. Creative angle: ${angles[index % angles.length]}.
+  const themeGuides: Record<string, Record<string, { hook: string; subtext: string; visual: string; cta: string }>> = {
+    'IA / Chatbot': {
+      Vendas: { hook: 'Seu WhatsApp pode vender 24h', subtext: 'Atenda leads automaticamente e não perca clientes fora do horário comercial.', visual: 'celular com conversa de WhatsApp, chatbot IA respondendo, gráficos de vendas subindo, ícones de automação', cta: 'Automatize seu atendimento com a Código-Base' },
+      Suporte: { hook: 'Pare de responder sempre as mesmas perguntas', subtext: 'IA tira dúvidas e reduz atendimento manual.', visual: 'chatbot de suporte, base de conhecimento, mensagens organizadas', cta: 'Reduza tarefas repetitivas' },
+      Agendamentos: { hook: 'Agenda cheia sem confusão', subtext: 'Automatize horários, confirmações e lembretes.', visual: 'calendário digital, notificações, celular com confirmação', cta: 'Organize seus agendamentos' },
+      'Dúvidas frequentes': { hook: 'Seu cliente não quer esperar', subtext: 'Responda perguntas repetitivas automaticamente.', visual: 'FAQ inteligente, balões de conversa, atendimento rápido', cta: 'Atenda melhor com IA' },
+    },
+    'Sistemas / Apps': {
+      'Site profissional': { hook: 'Site bonito é bom. Site que gera cliente é melhor', subtext: 'Presença digital profissional com foco em conversão.', visual: 'landing page premium em notebook, métricas de conversão, botões CTA', cta: 'Crie sua presença digital' },
+      'Sistema com login/painel': { hook: 'Sua empresa ainda depende de planilha?', subtext: 'Centralize processos em um painel sob medida.', visual: 'dashboard SaaS com login, usuários, relatórios e cards', cta: 'Transforme seu processo' },
+      'App/PWA': { hook: 'Seu negócio na tela do cliente', subtext: 'Aplicativo web moderno, responsivo e instalável.', visual: 'smartphone com PWA, interface moderna, ícones de app', cta: 'Crie seu app web' },
+      'Loja virtual': { hook: 'Venda online com estrutura profissional', subtext: 'Catálogo, pagamentos e WhatsApp integrados.', visual: 'e-commerce premium, carrinho, catálogo e WhatsApp', cta: 'Leve sua loja para o digital' },
+    },
+    'Dashboards / Dados': {
+      'Power BI': { hook: 'Veja suas vendas em tempo real', subtext: 'Dashboards profissionais para decidir com clareza.', visual: 'painel Power BI futurista, gráficos, KPIs, mapas e indicadores', cta: 'Decida com dados' },
+      'Planilhas automáticas': { hook: 'Planilha manual custa tempo e dinheiro', subtext: 'Automatize relatórios e reduza retrabalho.', visual: 'planilhas conectadas a dashboards, robôs e fluxos automáticos', cta: 'Automatize suas planilhas' },
+      'Indicadores financeiros': { hook: 'Sem dados, sua empresa cresce no escuro', subtext: 'Lucro, faturamento, custos e metas em uma visão clara.', visual: 'indicadores financeiros, gráficos de margem, cartões KPI', cta: 'Controle seus números' },
+      'Relatórios gerenciais': { hook: 'Você está decidindo no achismo?', subtext: 'Relatórios gerenciais aceleram decisões.', visual: 'sala executiva, dashboard gerencial, gráficos de produtividade', cta: 'Tenha relatórios claros' },
+    },
+    'Marketing / Instagram': {
+      'Posts e artes': { hook: 'Conteúdo profissional gera mais confiança', subtext: 'Artes premium para posicionar sua marca.', visual: 'feed Instagram premium, mockups de posts, calendário visual', cta: 'Transforme seu Instagram' },
+      Stories: { hook: 'Seu concorrente aparece todos os dias. E você?', subtext: 'Stories com CTA para gerar presença e venda.', visual: 'stories verticais, stickers elegantes, setas CTA', cta: 'Apareça todos os dias' },
+      'Reels/vídeos': { hook: 'Vídeo curto vende atenção', subtext: 'Roteiros e criativos para Reels com estratégia.', visual: 'timeline de vídeo, celular com reels, luzes neon', cta: 'Crie vídeos com estratégia' },
+      'Gestão de conteúdo': { hook: 'Postar sem estratégia não gera cliente', subtext: 'Calendário, conteúdo e automação para vender melhor.', visual: 'calendário editorial, painel de métricas, automação de postagens', cta: 'Organize seu conteúdo' },
+    },
+    'Hardware / Suporte': {
+      'Computador lento': { hook: 'Computador lento custa produtividade', subtext: 'Diagnóstico técnico para sua equipe parar de perder tempo.', visual: 'PC lento versus PC rápido, medidores de performance, técnico premium', cta: 'Acelere sua máquina' },
+      'Formatação/limpeza': { hook: 'Manutenção certa evita prejuízo', subtext: 'Sistema limpo, seguro e pronto para trabalhar.', visual: 'notebook com escudo de segurança, limpeza digital, antivírus', cta: 'Faça uma revisão técnica' },
+      'Rede/Wi-Fi/firewall': { hook: 'Internet caindo trava sua empresa', subtext: 'Rede, Wi-Fi e firewall configurados com segurança.', visual: 'mapa de rede, firewall, roteadores, escudo cyber', cta: 'Proteja sua rede' },
+      'Upgrade SSD/RAM': { hook: 'SSD pode transformar sua máquina', subtext: 'Mais velocidade para trabalhar sem travamentos.', visual: 'SSD, memória RAM, velocímetro de performance, notebook high-tech', cta: 'Faça upgrade com segurança' },
+    },
+  };
+  const fallback = { hook: themeOption.toUpperCase().slice(0, 34), subtext: 'Solução tecnológica sob medida para sua empresa.', visual: 'telas de sistema, automação, dashboards e elementos high-tech', cta: 'Fale com a Código-Base' };
+  const guide = themeGuides[themeCategory]?.[themeOption] || fallback;
+  const format = draftType === 'story' ? 'STORY 9:16 vertical' : 'CARROSSEL 9:16 vertical com visual consistente e páginas numeradas';
+  return `PROMPT MESTRE PARA GEMINI — IMAGENS CÓDIGO-BASE
+Você é um designer profissional especialista em marketing digital, tecnologia, inteligência artificial, automação, desenvolvimento de sistemas, infraestrutura e criação de artes premium para Instagram.
 
-Brand visual system MUST dominate the image: dark graphite #05070D and deep navy #08111F background, electric cyan #22D3EE, neon blue #38BDF8, vivid purple #A855F7, hot pink #EC4899 and premium orange #F97316 accents. Use futuristic glassmorphism, neon gradients, high-end SaaS dashboard UI, 3D smartphone/laptop, AI automation, WhatsApp growth and Instagram marketing cues. Style must look like a top-tier paid ad from an elite tech agency, not generic stock art.
+Crie uma imagem profissional para a marca CÓDIGO-BASE — Software & Hardware Solutions.
+Formato: ${format}. Slide: ${index + 1}.
+Tema: ${themeCategory}.
+Opção: ${themeOption}.
+Objetivo: criar uma arte persuasiva, impactante, profissional, moderna e pronta para postagem.
 
-Composition: strong center focus, luxury contrast, clean spacing, readable typography, cinematic light, premium Brazilian business audience. Put a short large Portuguese headline: "${headline}". Add 1-2 short benefit words only, large and readable. No tiny text, no fake numbers, no QR code, no third-party logos, no watermark, no misspelled brand text.
+IDENTIDADE VISUAL OBRIGATÓRIA
+Use sempre fundo escuro tecnológico, preto profundo, azul neon/ciano, laranja neon, branco metálico, elementos de circuito, luzes holográficas, dashboards futuristas, ícones de IA, telas de sistema, celular com WhatsApp, computador/notebook, gráficos e elementos de software/hardware.
+Estilo visual: premium, moderno, tecnológico, elite, profissional, high-tech, alto contraste, visual de empresa de tecnologia, design limpo, impactante e sofisticado.
+Não criar arte infantil. Não criar design simples demais. Não usar cartoon. Não poluir visualmente. Não deixar texto ilegível. Não inventar outra marca. Não alterar o nome Código-Base.
 
-Leave bottom 18% visually clean/darker for the official brand/contact overlay that will be applied after generation.`;
+LOGO E MARCA
+Inserir o logo ou nome em destaque: CÓDIGO-BASE — Software & Hardware Solutions. O nome deve aparecer claro e profissional no topo ou rodapé.
+
+CONTATOS OBRIGATÓRIOS EM TODAS AS IMAGENS
+WhatsApp: ${BRAND_WHATSAPP}
+Instagram: ${BRAND_INSTAGRAM}
+Site: ${BRAND_SITE}
+E-mail: ${BRAND_EMAIL}
+Os contatos devem ficar legíveis, organizados e com aparência profissional.
+
+ESTRUTURA DE COPY
+Título principal: "${guide.hook}"
+Subtítulo: "${guide.subtext}"
+CTA: "${guide.cta}"
+Use frases curtas, fortes e legíveis.
+
+ELEMENTOS VISUAIS
+${guide.visual}. Manter coerência com ${themeCategory} / ${themeOption}. Usar composição de marketing com gancho forte, dor do cliente, solução Código-Base, benefício claro e CTA para WhatsApp.
+
+COMANDO FINAL
+Agora gere uma imagem premium, moderna e tecnológica para Instagram da Código-Base, seguindo exatamente a identidade visual, cores, logo, contatos e estilo descritos acima. A imagem deve ser impactante, profissional, persuasiva, com design de alto nível e pronta para postagem.`;
 }
 async function logEvent(draftId: string | null, eventType: string, status: string, message?: string, response?: unknown) { await supabase.from('cb_ai_creative_logs').insert({ draft_id: draftId, event_type: eventType, status, message, response: response || null }); }
 let fontCache: Uint8Array | null = null;
@@ -52,7 +113,7 @@ async function applyBrandOverlay(b64: string) {
   const logo = await Image.decode(await getBrandLogo());
   logo.resize(Math.round(width * 0.13), Image.RESIZE_AUTO);
   image.composite(logo, margin, height - footerHeight + Math.round(footerHeight * 0.15));
-  const title = Image.renderText(font, Math.round(width * 0.04), 'CÓDIGO BASE', 0xffffffff);
+  const title = Image.renderText(font, Math.round(width * 0.04), 'CÓDIGO-BASE', 0xffffffff);
   const contact = Image.renderText(font, Math.round(width * 0.022), `${BRAND_SITE}  •  ${BRAND_WHATSAPP}\n${BRAND_INSTAGRAM}  •  ${BRAND_EMAIL}`, 0xd7f8ffff);
   image.composite(title, margin + Math.round(width * 0.16), height - footerHeight + Math.round(footerHeight * 0.18));
   image.composite(contact, margin + Math.round(width * 0.16), height - footerHeight + Math.round(footerHeight * 0.55));
