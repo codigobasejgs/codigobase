@@ -41,3 +41,12 @@ verify_jwt = true
 
 [functions.refresh-instagram-tokens]
 verify_jwt = false
+
+[functions.generate-ai-creatives]
+verify_jwt = true
+
+[functions.schedule-approved-creative]
+verify_jwt = true
+
+[functions.creative-daily-generator]
+verify_jwt = false
