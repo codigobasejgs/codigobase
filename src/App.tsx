@@ -2351,6 +2351,16 @@ Gostaria de agendar meu diagnóstico gratuito de TI e computadores para entender
                 </div>
 
                 <div className="flex items-center gap-3">
+                   <a
+                      href="/admin"
+                      className="inline-flex items-center gap-2 text-xs font-mono font-medium text-gray-500 hover:text-[#00D9FF] hover:bg-[#00D9FF]/5 px-3.5 py-2.5 rounded-xl border border-white/10 hover:border-[#00D9FF]/30 transition-all cursor-pointer shadow-sm active:scale-95 print:hidden bg-white/5"
+                      title="Acesso restrito ao painel administrativo"
+                      aria-label="Acessar painel administrativo restrito"
+                   >
+                      <ShieldCheck size={14} className="text-[#00D9FF]" />
+                      <span>Admin</span>
+                   </a>
+
                    {/* 1. Print Optimized Version Trigger */}
                    <button
                       onClick={() => window.print()}
