@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ImagePlus, RefreshCw, Send, Sparkles, ThumbsDown, ThumbsUp } from 'lucide-react';
+import { ExternalLink, ImagePlus, Maximize2, RefreshCw, Send, Sparkles, ThumbsDown, ThumbsUp, X } from 'lucide-react';
 import { supabase, supabaseFunctionsUrl } from './lib/supabaseClient';
 
 type Draft = { id: string; draft_type: 'story' | 'carousel'; platform_targets: string[]; theme_category: string; theme_option: string; title: string | null; caption: string | null; status: 'draft' | 'generated' | 'approved' | 'scheduled' | 'rejected' | 'error'; scheduled_at: string | null; created_at: string; assets?: Asset[]; };
@@ -29,6 +29,7 @@ export default function AiCreativeStudio({ session }: { session: any }) {
   const [scheduledAt, setScheduledAt] = useState(toLocalInputValue());
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState('');
+  const [selectedAsset, setSelectedAsset] = useState<{ draft: Draft; asset: Asset } | null>(null);
   const themeOptions = useMemo(() => THEMES[themeCategory] || [], [themeCategory]);
 
   async function loadDrafts() {
@@ -42,6 +43,11 @@ export default function AiCreativeStudio({ session }: { session: any }) {
     setDrafts((draftRows || []).map((draft) => ({ ...draft, assets: assets.filter((asset) => asset.draft_id === draft.id) })));
   }
   useEffect(() => { loadDrafts(); }, []);
+  useEffect(() => {
+    function closeOnEsc(event: KeyboardEvent) { if (event.key === 'Escape') setSelectedAsset(null); }
+    window.addEventListener('keydown', closeOnEsc);
+    return () => window.removeEventListener('keydown', closeOnEsc);
+  }, []);
 
   function togglePlatform(platform: string) { setPlatforms((items) => items.includes(platform) ? items.filter((item) => item !== platform) : [...items, platform]); }
 
@@ -91,8 +97,25 @@ export default function AiCreativeStudio({ session }: { session: any }) {
     </div>
 
     <div className="mt-6 grid gap-4">
-      {drafts.map((draft) => <div key={draft.id} className="rounded-2xl border border-white/10 bg-black/20 p-4"><div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold text-white">{draft.title || draft.theme_option}</h3><p className="text-xs text-gray-500">{draft.draft_type} • {draft.theme_category} • {draft.status} • {draft.platform_targets?.join(', ')}</p></div><div className="flex flex-wrap gap-2"><button disabled={draft.status === 'rejected'} onClick={() => patchDraft(draft, { status: 'approved' as any })} className="rounded-xl border border-green-400/30 bg-green-400/10 px-3 py-2 text-xs text-green-100"><ThumbsUp size={14} className="inline mr-1" />Aprovar</button><button disabled={draft.status === 'scheduled'} onClick={() => patchDraft(draft, { status: 'rejected' as any })} className="rounded-xl border border-red-400/30 bg-red-400/10 px-3 py-2 text-xs text-red-100"><ThumbsDown size={14} className="inline mr-1" />Rejeitar</button><button disabled={loading || !['approved','generated'].includes(draft.status)} onClick={() => scheduleDraft(draft)} className="rounded-xl bg-cyan-400 px-3 py-2 text-xs font-bold text-black"><Send size={14} className="inline mr-1" />Agendar</button><button disabled={loading || !['approved','generated'].includes(draft.status)} onClick={() => scheduleDraft(draft, true)} className="rounded-xl bg-orange-400 px-3 py-2 text-xs font-bold text-black">Publicar agora</button></div></div><div className="grid gap-3 md:grid-cols-5">{draft.assets?.map((asset) => <img key={asset.id} src={asset.media_url} className="h-52 w-full rounded-xl border border-white/10 object-cover" />)}</div><textarea value={draft.caption || ''} onChange={(e) => setDrafts((items) => items.map((item) => item.id === draft.id ? { ...item, caption: e.target.value } : item))} onBlur={(e) => patchDraft(draft, { caption: e.target.value })} className="mt-3 min-h-[130px] w-full rounded-xl border border-white/10 bg-[#05070D] p-3 text-sm outline-none focus:border-purple-400" /></div>)}
+      {drafts.map((draft) => <div key={draft.id} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><h3 className="font-bold text-white">{draft.title || draft.theme_option}</h3><p className="text-xs text-gray-500">{draft.draft_type} • {draft.theme_category} • {draft.status} • {draft.platform_targets?.join(', ')}</p></div><div className="flex flex-wrap gap-2"><button disabled={draft.status === 'rejected'} onClick={() => patchDraft(draft, { status: 'approved' as any })} className="rounded-xl border border-green-400/30 bg-green-400/10 px-3 py-2 text-xs text-green-100"><ThumbsUp size={14} className="inline mr-1" />Aprovar</button><button disabled={draft.status === 'scheduled'} onClick={() => patchDraft(draft, { status: 'rejected' as any })} className="rounded-xl border border-red-400/30 bg-red-400/10 px-3 py-2 text-xs text-red-100"><ThumbsDown size={14} className="inline mr-1" />Rejeitar</button><button disabled={loading || !['approved','generated'].includes(draft.status)} onClick={() => scheduleDraft(draft)} className="rounded-xl bg-cyan-400 px-3 py-2 text-xs font-bold text-black"><Send size={14} className="inline mr-1" />Agendar</button><button disabled={loading || !['approved','generated'].includes(draft.status)} onClick={() => scheduleDraft(draft, true)} className="rounded-xl bg-orange-400 px-3 py-2 text-xs font-bold text-black">Publicar agora</button></div></div>
+        <div className="grid gap-3 md:grid-cols-5">{draft.assets?.map((asset) => <button key={asset.id} type="button" onClick={() => setSelectedAsset({ draft, asset })} className="group relative overflow-hidden rounded-xl border border-white/10 bg-white/5 text-left outline-none ring-purple-300 transition hover:border-purple-300/70 focus:ring-2" title="Expandir imagem para conferência"><img src={asset.media_url} className="h-52 w-full object-cover transition duration-300 group-hover:scale-105" /><span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-2 bg-black/70 px-3 py-2 text-xs font-bold text-white opacity-0 transition group-hover:opacity-100 group-focus:opacity-100"><Maximize2 size={14} />Expandir</span><span className="absolute left-2 top-2 rounded-full bg-black/70 px-2 py-1 text-[11px] font-bold text-white">#{asset.position + 1}</span></button>)}</div>
+        <textarea value={draft.caption || ''} onChange={(e) => setDrafts((items) => items.map((item) => item.id === draft.id ? { ...item, caption: e.target.value } : item))} onBlur={(e) => patchDraft(draft, { caption: e.target.value })} className="mt-3 min-h-[130px] w-full rounded-xl border border-white/10 bg-[#05070D] p-3 text-sm outline-none focus:border-purple-400" />
+      </div>)}
       {!drafts.length && <p className="rounded-2xl border border-white/10 bg-black/20 p-6 text-gray-500">Nenhum criativo gerado ainda.</p>}
     </div>
+
+    {selectedAsset && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur" role="dialog" aria-modal="true" onClick={() => setSelectedAsset(null)}>
+      <div className="flex max-h-[94vh] w-full max-w-6xl flex-col gap-4 rounded-3xl border border-white/10 bg-[#05070D] p-4 shadow-2xl" onClick={(event) => event.stopPropagation()}>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div><h3 className="text-lg font-bold text-white">{selectedAsset.draft.title || selectedAsset.draft.theme_option}</h3><p className="text-xs text-gray-400">Imagem #{selectedAsset.asset.position + 1} • {selectedAsset.draft.draft_type} • {selectedAsset.draft.status}</p></div>
+          <div className="flex gap-2"><a href={selectedAsset.asset.media_url} target="_blank" rel="noreferrer" className="rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-white hover:bg-white/10"><ExternalLink size={14} className="inline mr-1" />Nova aba</a><button type="button" onClick={() => setSelectedAsset(null)} className="rounded-xl border border-white/10 bg-white/5 p-2 text-white hover:bg-white/10" aria-label="Fechar"><X size={18} /></button></div>
+        </div>
+        <div className="grid min-h-0 gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="flex min-h-0 items-center justify-center overflow-auto rounded-2xl bg-black/40 p-3"><img src={selectedAsset.asset.media_url} className="max-h-[76vh] w-auto max-w-full rounded-xl object-contain" /></div>
+          <div className="min-h-0 overflow-auto rounded-2xl border border-white/10 bg-black/30 p-4 text-sm text-gray-300"><p className="mb-2 font-bold text-white">Prompt da imagem</p><p className="whitespace-pre-wrap text-xs leading-relaxed text-gray-400">{selectedAsset.asset.prompt || 'Sem prompt salvo.'}</p></div>
+        </div>
+      </div>
+    </div>}
   </section>;
 }
