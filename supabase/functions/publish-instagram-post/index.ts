@@ -4,6 +4,9 @@ const corsHeaders = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const META_GRAPH_VERSION = Deno.env.get('META_GRAPH_VERSION') || 'v23.0';
+const META_APP_ID = Deno.env.get('META_APP_ID') || '';
+const META_APP_SECRET = Deno.env.get('META_APP_SECRET') || '';
+const REFRESH_DAYS = Number(Deno.env.get('INSTAGRAM_TOKEN_REFRESH_DAYS') || 10);
 const STALE_MINUTES = Number(Deno.env.get('INSTAGRAM_PUBLISHING_STALE_MINUTES') || 15);
 const POLL_ATTEMPTS = Number(Deno.env.get('INSTAGRAM_CONTAINER_POLL_ATTEMPTS') || 8);
 const POLL_DELAY_MS = Number(Deno.env.get('INSTAGRAM_CONTAINER_POLL_DELAY_MS') || 2500);
@@ -67,6 +70,29 @@ async function graphGet(path: string, token: string, params: Record<string, any>
     throw err;
   }
   return { data, endpoint: path, duration_ms: Date.now() - started };
+}
+
+async function refreshAccountTokenIfNeeded(account: any, postId: string, lockId: string) {
+  const expiresAt = account.token_expires_at ? new Date(account.token_expires_at).getTime() : 0;
+  const refreshAt = Date.now() + REFRESH_DAYS * 24 * 60 * 60 * 1000;
+  if (expiresAt && expiresAt > refreshAt) return account;
+  if (!META_APP_ID || !META_APP_SECRET) return account;
+  const url = new URL(`${graphBase()}/oauth/access_token`);
+  url.searchParams.set('grant_type', 'fb_exchange_token');
+  url.searchParams.set('client_id', META_APP_ID);
+  url.searchParams.set('client_secret', META_APP_SECRET);
+  url.searchParams.set('fb_exchange_token', account.access_token);
+  const res = await fetch(url.toString());
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data?.error) {
+    await logEvent(postId, account.id, lockId, 'token_refresh_skipped', 'warn', data?.error?.message || `refresh ${res.status}`, '/oauth/access_token', data);
+    return account;
+  }
+  const token = data.access_token || account.access_token;
+  const expiration = new Date(Date.now() + Number(data.expires_in || 60 * 24 * 60 * 60) * 1000).toISOString();
+  await supabase.from('cb_instagram_accounts').update({ access_token: token, token_expires_at: expiration, token_last_refreshed_at: nowIso(), is_active: true, last_error: null, updated_at: nowIso() }).eq('id', account.id);
+  await logEvent(postId, account.id, lockId, 'token_refreshed_before_publish', 'ok', `expires ${expiration}`, '/oauth/access_token', { expires_at: expiration });
+  return { ...account, access_token: token, token_expires_at: expiration, is_active: true, last_error: null };
 }
 
 async function pollContainer(containerId: string, token: string) {
@@ -163,9 +189,10 @@ async function claimPost(id: string, lockId: string) {
 
 async function sendInstagram(post: any, lockId: string): Promise<PublishOutcome> {
   const started = Date.now();
-  const { data: account, error: accountError } = await supabase.from('cb_instagram_accounts').select('*').eq('id', post.account_id).single();
-  if (accountError || !account) throw new Error(accountError?.message || 'Instagram account not found');
-  if (!account.is_active) throw new Error(account.last_error || 'Instagram account inactive');
+  const { data: accountRow, error: accountError } = await supabase.from('cb_instagram_accounts').select('*').eq('id', post.account_id).single();
+  if (accountError || !accountRow) throw new Error(accountError?.message || 'Instagram account not found');
+  if (!accountRow.is_active) throw new Error(accountRow.last_error || 'Instagram account inactive');
+  const account = await refreshAccountTokenIfNeeded(accountRow, post.id, lockId);
   const { data: media, error: mediaError } = await supabase.from('cb_instagram_post_media').select('*').eq('post_id', post.id).order('position');
   if (mediaError) throw new Error(mediaError.message);
   validatePost(post, media || []);
