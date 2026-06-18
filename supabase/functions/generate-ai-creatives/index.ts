@@ -1,4 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
+import { GoogleGenAI } from 'https://esm.sh/@google/genai@2.4.0';
+import { Image } from 'https://deno.land/x/imagescript@1.3.0/mod.ts';
 
 const corsHeaders = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type' };
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -6,24 +8,60 @@ const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY') || '';
 const OPENAI_IMAGE_MODEL = Deno.env.get('OPENAI_IMAGE_MODEL') || 'gpt-image-1';
 const OPENAI_IMAGE_SIZE = Deno.env.get('OPENAI_IMAGE_SIZE') || '1024x1792';
+const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GOOGLE_API_KEY') || '';
+const GEMINI_IMAGE_MODEL = Deno.env.get('GEMINI_IMAGE_MODEL') || 'imagen-3.0-generate-002';
+const BRAND_LOGO_URL = Deno.env.get('BRAND_LOGO_URL') || 'https://www.codigobase.com.br/logo.png';
+const BRAND_SITE = Deno.env.get('BRAND_SITE') || 'www.codigobase.com.br';
+const BRAND_WHATSAPP = Deno.env.get('BRAND_WHATSAPP') || '(11) 98626-2240';
+const BRAND_EMAIL = Deno.env.get('BRAND_EMAIL') || 'projetos.jgs@gmail.com';
+const BRAND_INSTAGRAM = Deno.env.get('BRAND_INSTAGRAM') || '@codigobase';
+const BRAND_FONT_URL = Deno.env.get('BRAND_FONT_URL') || 'https://raw.githubusercontent.com/google/fonts/main/ofl/inter/Inter%5Bopsz,wght%5D.ttf';
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
 function json(data: unknown, init: ResponseInit = {}) { return new Response(JSON.stringify(data), { ...init, headers: { ...corsHeaders, 'Content-Type': 'application/json', ...(init.headers || {}) } }); }
 async function requireUser(authHeader: string) { const token = authHeader.replace(/^Bearer\s+/i, '').trim(); if (!token) throw new Error('unauthorized'); if (token === SUPABASE_SERVICE_ROLE_KEY) return { id: null }; const client = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { global: { headers: { Authorization: authHeader } } }); const { data, error } = await client.auth.getUser(token); if (error || !data.user) throw new Error('unauthorized'); return data.user; }
 function bytesFromBase64(b64: string) { const bin = atob(b64); const bytes = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i); return bytes; }
 function slug(text: string) { return text.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase().slice(0, 80); }
-function caption(themeCategory: string, themeOption: string, draftType: string) { return `✨ ${themeOption.toUpperCase()} COM TECNOLOGIA DE PONTA! ✨\n\nA CÓDIGO-BASE transforma ${themeCategory} em soluções digitais que chamam atenção, geram autoridade e ajudam sua empresa a vender mais com estratégia.\n\n${draftType === 'carousel' ? 'ARRASTE PARA O LADO E VEJA COMO APLICAR ISSO NO SEU NEGÓCIO! ➡️' : 'RESPONDA ESTE STORY E DESCUBRA COMO APLICAR ISSO NO SEU NEGÓCIO! 🚀'}\n\n━━━━━━━━━━━━━━━━━━━━━━━━\n\n💡 O QUE VOCÊ PODE GANHAR:\n\n✅ Atendimento mais rápido e profissional\n✅ Menos tarefas manuais no dia a dia\n✅ Mais presença digital, leads e oportunidades\n✅ Tecnologia sob medida para crescer com resultado\n\n━━━━━━━━━━━━━━━━━━━━━━━━\n\n📲 FALE COM A CÓDIGO-BASE:\n\n🌐 Site: www.codigobase.com.br\n✨ WhatsApp: (11) 98626-2240\n📧 E-mail: projetos.jgs@gmail.com\n\n#CodigoBase #Tecnologia #InteligenciaArtificial #MarketingDigital #DesenvolvimentoDeSoftware #SaaS #PowerBI #ChatbotIA #TransformacaoDigital #Resultados #Inovacao #Negocios #SaoPaulo #Brasil #Tech`; }
-function imagePrompt(themeCategory: string, themeOption: string, draftType: string, index: number) { return `Vertical 9:16 premium social media creative for Código Base, Brazilian technology agency. Theme: ${themeCategory} / ${themeOption}. Asset type: ${draftType}, slide ${index + 1}. Futuristic tech aesthetic, dark navy background, cyan/orange/pink neon accents, professional SaaS dashboard elements, AI automation, WhatsApp/Instagram growth, clean 3D devices, high contrast, modern Brazilian business audience, elite agency ad, attention-grabbing composition. If text appears, use only short large Portuguese words, no tiny text, no fake numbers, no logos from other brands.`; }
+function caption(themeCategory: string, themeOption: string, draftType: string) { return `✨ ${themeOption.toUpperCase()} COM TECNOLOGIA DE PONTA! ✨\n\nA CÓDIGO-BASE transforma ${themeCategory} em soluções digitais que chamam atenção, geram autoridade e ajudam sua empresa a vender mais com estratégia.\n\n${draftType === 'carousel' ? 'ARRASTE PARA O LADO E VEJA COMO APLICAR ISSO NO SEU NEGÓCIO! ➡️' : 'RESPONDA ESTE STORY E DESCUBRA COMO APLICAR ISSO NO SEU NEGÓCIO! 🚀'}\n\n━━━━━━━━━━━━━━━━━━━━━━━━\n\n💡 O QUE VOCÊ PODE GANHAR:\n\n✅ Atendimento mais rápido e profissional\n✅ Menos tarefas manuais no dia a dia\n✅ Mais presença digital, leads e oportunidades\n✅ Tecnologia sob medida para crescer com resultado\n\n━━━━━━━━━━━━━━━━━━━━━━━━\n\n📲 FALE COM A CÓDIGO-BASE:\n\n🌐 Site: ${BRAND_SITE}\n📱 WhatsApp: ${BRAND_WHATSAPP}\n📸 Instagram: ${BRAND_INSTAGRAM}\n📧 E-mail: ${BRAND_EMAIL}\n\n#CodigoBase #Tecnologia #InteligenciaArtificial #MarketingDigital #DesenvolvimentoDeSoftware #SaaS #PowerBI #ChatbotIA #TransformacaoDigital #Resultados #Inovacao #Negocios #SaoPaulo #Brasil #Tech`; }
+function imagePrompt(themeCategory: string, themeOption: string, draftType: string, index: number) { return `Vertical 9:16 premium social media creative for Código Base, Brazilian technology agency. Theme: ${themeCategory} / ${themeOption}. Asset type: ${draftType}, slide ${index + 1}. Futuristic tech aesthetic, dark navy background, cyan/orange/pink neon accents, professional SaaS dashboard elements, AI automation, WhatsApp/Instagram growth, clean 3D devices, high contrast, modern Brazilian business audience, elite agency ad, attention-grabbing composition. Mandatory visible brand block: official brand name "CÓDIGO BASE" large and clean, website "www.codigobase.com.br", WhatsApp "(11) 98626-2240", email "projetos.jgs@gmail.com", Instagram "@codigobase". Use short large Portuguese text only, readable typography, no tiny text, no fake numbers, no third-party logos.`; }
 async function logEvent(draftId: string | null, eventType: string, status: string, message?: string, response?: unknown) { await supabase.from('cb_ai_creative_logs').insert({ draft_id: draftId, event_type: eventType, status, message, response: response || null }); }
-async function generateImage(prompt: string) { const res = await fetch('https://api.openai.com/v1/images/generations', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_API_KEY}` }, body: JSON.stringify({ model: OPENAI_IMAGE_MODEL, prompt, size: OPENAI_IMAGE_SIZE, n: 1 }) }); const data = await res.json().catch(() => ({})); if (!res.ok) throw new Error(data?.error?.message || `OpenAI image ${res.status}`); const b64 = data?.data?.[0]?.b64_json; if (!b64) throw new Error('OpenAI não retornou imagem base64'); return { b64, response: data }; }
-async function createDraft(userId: string, draftType: 'story' | 'carousel', platformTargets: string[], themeCategory: string, themeOption: string, slideCount: number, scheduledAt?: string) {
-  const title = `${draftType === 'story' ? 'Story' : 'Carrossel'} • ${themeCategory} • ${themeOption}`;
+let fontCache: Uint8Array | null = null;
+let logoCache: Uint8Array | null = null;
+async function fetchBytes(url: string) { const res = await fetch(url); if (!res.ok) throw new Error(`Falha ao carregar asset de marca: ${url} (${res.status})`); return new Uint8Array(await res.arrayBuffer()); }
+async function getBrandFont() { if (!fontCache) fontCache = await fetchBytes(BRAND_FONT_URL); return fontCache; }
+async function getBrandLogo() { if (!logoCache) logoCache = await fetchBytes(BRAND_LOGO_URL); return logoCache; }
+async function getGeminiKey() { if (GEMINI_API_KEY) return GEMINI_API_KEY; const { data } = await supabase.from('cb_ai_settings').select('gemini_api_key').eq('id', 1).maybeSingle(); return data?.gemini_api_key || ''; }
+async function applyBrandOverlay(b64: string) {
+  const image = await Image.decode(bytesFromBase64(b64));
+  const width = image.width;
+  const height = image.height;
+  const margin = Math.round(width * 0.045);
+  const footerHeight = Math.round(height * 0.15);
+  image.drawBox(0, height - footerHeight, width, footerHeight, 0x05070de8);
+  const font = await getBrandFont();
+  const logo = await Image.decode(await getBrandLogo());
+  logo.resize(Math.round(width * 0.13), Image.RESIZE_AUTO);
+  image.composite(logo, margin, height - footerHeight + Math.round(footerHeight * 0.15));
+  const title = Image.renderText(font, Math.round(width * 0.04), 'CÓDIGO BASE', 0xffffffff);
+  const contact = Image.renderText(font, Math.round(width * 0.022), `${BRAND_SITE}  •  ${BRAND_WHATSAPP}\n${BRAND_INSTAGRAM}  •  ${BRAND_EMAIL}`, 0xd7f8ffff);
+  image.composite(title, margin + Math.round(width * 0.16), height - footerHeight + Math.round(footerHeight * 0.18));
+  image.composite(contact, margin + Math.round(width * 0.16), height - footerHeight + Math.round(footerHeight * 0.55));
+  const branded = await image.encode(2);
+  let bin = '';
+  for (const byte of branded) bin += String.fromCharCode(byte);
+  return btoa(bin);
+}
+async function generateOpenAiImage(prompt: string) { const res = await fetch('https://api.openai.com/v1/images/generations', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_API_KEY}` }, body: JSON.stringify({ model: OPENAI_IMAGE_MODEL, prompt, size: OPENAI_IMAGE_SIZE, n: 1 }) }); const data = await res.json().catch(() => ({})); if (!res.ok) throw new Error(data?.error?.message || `OpenAI image ${res.status}`); const b64 = data?.data?.[0]?.b64_json; if (!b64) throw new Error('OpenAI não retornou imagem base64'); return { b64: await applyBrandOverlay(b64), provider: 'openai', response: data }; }
+async function generateGeminiImage(prompt: string, apiKey: string) { const ai = new GoogleGenAI({ apiKey }); const data = await ai.models.generateImages({ model: GEMINI_IMAGE_MODEL, prompt, config: { numberOfImages: 1, aspectRatio: '9:16', outputMimeType: 'image/png', includeRaiReason: true } }); const b64 = data?.generatedImages?.[0]?.image?.imageBytes; if (!b64) throw new Error('Gemini/Imagen não retornou imagem base64'); return { b64: await applyBrandOverlay(b64), provider: 'gemini', response: data }; }
+async function generateImage(prompt: string, provider: 'openai' | 'gemini') { if (provider === 'gemini') { const apiKey = await getGeminiKey(); if (!apiKey) throw new Error('GEMINI_API_KEY não configurada'); return generateGeminiImage(prompt, apiKey); } if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY não configurada'); return generateOpenAiImage(prompt); }
+async function createDraft(userId: string, draftType: 'story' | 'carousel', platformTargets: string[], themeCategory: string, themeOption: string, slideCount: number, scheduledAt: string | null, provider: 'openai' | 'gemini') {
+  const title = `${draftType === 'story' ? 'Story' : 'Carrossel'} • ${themeCategory} • ${themeOption} • ${provider === 'gemini' ? 'Gemini' : 'OpenAI'}`;
   const { data: draft, error } = await supabase.from('cb_ai_creative_drafts').insert({ draft_type: draftType, platform_targets: platformTargets, theme_category: themeCategory, theme_option: themeOption, title, caption: caption(themeCategory, themeOption, draftType), status: 'generated', scheduled_at: scheduledAt || null, created_by: userId }).select('id').single();
   if (error) throw new Error(error.message);
   for (let i = 0; i < slideCount; i++) {
     const prompt = imagePrompt(themeCategory, themeOption, draftType, i);
-    await logEvent(draft.id, 'image_generation_started', 'running', prompt);
-    const generated = await generateImage(prompt);
+    await logEvent(draft.id, 'image_generation_started', 'running', `${provider}: ${prompt}`);
+    const generated = await generateImage(prompt, provider);
     const path = `${draft.id}/${String(i + 1).padStart(2, '0')}-${slug(themeOption)}.png`;
     const bytes = bytesFromBase64(generated.b64);
     const { error: uploadError } = await supabase.storage.from('ai-generated-creatives').upload(path, bytes, { contentType: 'image/png', upsert: true });
@@ -40,7 +78,6 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   try {
     const user = await requireUser(req.headers.get('Authorization') || '');
-    if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY não configurada');
     const body = await req.json();
     const themeCategory = body.themeCategory || 'IA / Chatbot';
     const themeOption = body.themeOption || 'Vendas';
@@ -48,9 +85,10 @@ Deno.serve(async (req) => {
     const storyCount = Math.max(0, Math.min(10, Number(body.storyCount || 3)));
     const carouselSlideCount = Math.max(2, Math.min(10, Number(body.carouselSlideCount || 5)));
     const scheduledAt = body.scheduledAt || null;
+    const provider = body.provider === 'gemini' ? 'gemini' : 'openai';
     const drafts: string[] = [];
-    for (let i = 0; i < storyCount; i++) drafts.push(await createDraft(user.id, 'story', platforms, themeCategory, themeOption, 1, scheduledAt));
-    drafts.push(await createDraft(user.id, 'carousel', platforms, themeCategory, themeOption, carouselSlideCount, scheduledAt));
+    for (let i = 0; i < storyCount; i++) drafts.push(await createDraft(user.id, 'story', platforms, themeCategory, themeOption, 1, scheduledAt, provider));
+    drafts.push(await createDraft(user.id, 'carousel', platforms, themeCategory, themeOption, carouselSlideCount, scheduledAt, provider));
     return json({ ok: true, drafts });
   } catch (error) {
     const message = String(error?.message || error);

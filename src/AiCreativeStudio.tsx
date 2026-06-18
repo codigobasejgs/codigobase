@@ -23,6 +23,7 @@ export default function AiCreativeStudio({ session }: { session: any }) {
   const [themeCategory, setThemeCategory] = useState('IA / Chatbot');
   const [themeOption, setThemeOption] = useState('Vendas');
   const [platforms, setPlatforms] = useState<string[]>(['instagram', 'whatsapp']);
+  const [provider, setProvider] = useState<'openai' | 'gemini'>('openai');
   const [storyCount, setStoryCount] = useState(3);
   const [carouselSlideCount, setCarouselSlideCount] = useState(5);
   const [scheduledAt, setScheduledAt] = useState(toLocalInputValue());
@@ -45,9 +46,9 @@ export default function AiCreativeStudio({ session }: { session: any }) {
   function togglePlatform(platform: string) { setPlatforms((items) => items.includes(platform) ? items.filter((item) => item !== platform) : [...items, platform]); }
 
   async function generatePackage() {
-    setLoading(true); setNotice('Gerando pacote com OpenAI Images... isso pode levar alguns minutos.');
+    setLoading(true); setNotice(`Gerando pacote com ${provider === 'gemini' ? 'Google Gemini/Imagen' : 'OpenAI Images'}... isso pode levar alguns minutos.`);
     try {
-      const res = await fetch(`${supabaseFunctionsUrl}/generate-ai-creatives`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ themeCategory, themeOption, platforms, storyCount, carouselSlideCount, scheduledAt: new Date(scheduledAt).toISOString() }) });
+      const res = await fetch(`${supabaseFunctionsUrl}/generate-ai-creatives`, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ provider, themeCategory, themeOption, platforms, storyCount, carouselSlideCount, scheduledAt: new Date(scheduledAt).toISOString() }) });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || 'Falha ao gerar criativos');
       setNotice(`Pacote gerado: ${data.drafts?.length || 0} drafts aguardando aprovação.`);
@@ -75,12 +76,13 @@ export default function AiCreativeStudio({ session }: { session: any }) {
   }
 
   return <section className="rounded-3xl border border-purple-400/20 bg-purple-400/[0.03] p-6 shadow-[0_0_50px_rgba(168,85,247,0.08)]">
-    <div className="mb-6 flex flex-wrap items-center justify-between gap-3"><div><h2 className="flex items-center gap-2 text-2xl font-bold"><Sparkles className="text-purple-300" /> Criativos IA</h2><p className="mt-1 text-sm text-gray-400">Gere 3 stories + 1 carrossel com 5 imagens via OpenAI, aprove e agende para WhatsApp/Instagram.</p></div><button onClick={loadDrafts} className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10"><RefreshCw size={16} className="inline mr-2" />Atualizar</button></div>
+    <div className="mb-6 flex flex-wrap items-center justify-between gap-3"><div><h2 className="flex items-center gap-2 text-2xl font-bold"><Sparkles className="text-purple-300" /> Criativos IA</h2><p className="mt-1 text-sm text-gray-400">Gere 3 stories + 1 carrossel com 5 imagens via OpenAI ou Gemini, com marca/contatos Código Base, aprove e agende.</p></div><button onClick={loadDrafts} className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm hover:bg-white/10"><RefreshCw size={16} className="inline mr-2" />Atualizar</button></div>
 
     <div className="grid gap-4 rounded-2xl border border-white/10 bg-black/20 p-4 lg:grid-cols-4">
       <label className="space-y-2"><span className="text-sm font-bold text-gray-200">Categoria</span><select value={themeCategory} onChange={(e) => { setThemeCategory(e.target.value); setThemeOption(THEMES[e.target.value][0]); }} className="w-full rounded-xl border border-white/10 bg-[#05070D] px-3 py-3 outline-none focus:border-purple-400">{Object.keys(THEMES).map((theme) => <option key={theme}>{theme}</option>)}</select></label>
       <label className="space-y-2"><span className="text-sm font-bold text-gray-200">Tema</span><select value={themeOption} onChange={(e) => setThemeOption(e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#05070D] px-3 py-3 outline-none focus:border-purple-400">{themeOptions.map((option) => <option key={option}>{option}</option>)}</select></label>
       <label className="space-y-2"><span className="text-sm font-bold text-gray-200">Data/hora sugerida</span><input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#05070D] px-3 py-3 outline-none focus:border-purple-400" /></label>
+      <label className="space-y-2"><span className="text-sm font-bold text-gray-200">Gerador</span><select value={provider} onChange={(e) => setProvider(e.target.value as 'openai' | 'gemini')} className="w-full rounded-xl border border-white/10 bg-[#05070D] px-3 py-3 outline-none focus:border-purple-400"><option value="openai">OpenAI Images</option><option value="gemini">Google Gemini / Imagen</option></select></label>
       <div className="space-y-2"><span className="text-sm font-bold text-gray-200">Plataformas</span><div className="flex gap-2 pt-1"><button type="button" onClick={() => togglePlatform('instagram')} className={`rounded-xl border px-3 py-2 text-sm ${platforms.includes('instagram') ? 'border-pink-300 bg-pink-300 text-black' : 'border-white/10 bg-white/5 text-gray-300'}`}>Instagram</button><button type="button" onClick={() => togglePlatform('whatsapp')} className={`rounded-xl border px-3 py-2 text-sm ${platforms.includes('whatsapp') ? 'border-green-300 bg-green-300 text-black' : 'border-white/10 bg-white/5 text-gray-300'}`}>WhatsApp</button></div></div>
       <label className="space-y-2"><span className="text-sm font-bold text-gray-200">Stories/dia</span><input type="number" min={1} max={10} value={storyCount} onChange={(e) => setStoryCount(Number(e.target.value))} className="w-full rounded-xl border border-white/10 bg-[#05070D] px-3 py-3 outline-none focus:border-purple-400" /></label>
       <label className="space-y-2"><span className="text-sm font-bold text-gray-200">Slides carrossel</span><input type="number" min={2} max={10} value={carouselSlideCount} onChange={(e) => setCarouselSlideCount(Number(e.target.value))} className="w-full rounded-xl border border-white/10 bg-[#05070D] px-3 py-3 outline-none focus:border-purple-400" /></label>
