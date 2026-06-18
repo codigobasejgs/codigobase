@@ -7,6 +7,9 @@ coverage/
 .webhook-secret.local
 .status-cron-secret.local
 .instagram-cron-secret.local
+.instagram-refresh-cron.cmd
+.instagram-scheduler-cron.cmd
+.whatsapp-status-scheduler-cron.cmd
 .vercel-env-debug
 .env*
 !.env.example

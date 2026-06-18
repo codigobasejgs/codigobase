@@ -1,0 +1,6 @@
+-- Scheduler Vault secrets were seeded directly in production on 2026-06-18.
+-- Do not store project secrets in git migrations.
+-- Required Vault secret names:
+-- - codigobase_project_url
+-- - codigobase_instagram_scheduler_secret
+-- - codigobase_whatsapp_status_scheduler_secret

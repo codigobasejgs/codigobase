@@ -39,6 +39,12 @@ type InstagramPost = {
   ig_media_id: string | null;
   permalink: string | null;
   error_message: string | null;
+  recurrence_enabled: boolean;
+  recurrence_frequency: 'none' | 'daily' | 'weekly' | 'monthly';
+  recurrence_times: string[] | null;
+  recurrence_weekdays: number[] | null;
+  recurrence_month_days: number[] | null;
+  recurrence_until: string | null;
   created_at: string;
   media?: InstagramMedia[];
 };
@@ -77,6 +83,11 @@ export default function InstagramScheduler({ session }: { session: any }) {
   const [campaign, setCampaign] = useState('Sites');
   const [postType, setPostType] = useState<InstagramPost['post_type']>('feed_image');
   const [scheduledAt, setScheduledAt] = useState(toLocalInputValue());
+  const [recurrenceFrequency, setRecurrenceFrequency] = useState<'none' | 'daily' | 'weekly' | 'monthly'>('none');
+  const [recurrenceTimes, setRecurrenceTimes] = useState('09:00, 13:30, 18:00');
+  const [recurrenceWeekdays, setRecurrenceWeekdays] = useState<number[]>([1,2,3,4,5]);
+  const [recurrenceMonthDays, setRecurrenceMonthDays] = useState('1,15');
+  const [recurrenceUntil, setRecurrenceUntil] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [statusFilter, setStatusFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
@@ -133,7 +144,7 @@ export default function InstagramScheduler({ session }: { session: any }) {
   function validateFiles() {
     if (!selectedAccountId) throw new Error('Conecte/selecione uma conta Instagram primeiro.');
     if (!files.length) throw new Error('Adicione mídia.');
-    if (postType === 'carousel' && (files.length < 2 || files.length > 10)) throw new Error('Carrossel precisa de 2 a 10 mídias.');
+    if (postType === 'carousel' && files.length < 2) throw new Error('Carrossel precisa de pelo menos 2 mídias. Se passar de 10, eu divido automaticamente em múltiplos carrosséis.');
     if (postType !== 'carousel' && files.length !== 1) throw new Error('Este tipo aceita apenas 1 mídia.');
     if (postType === 'feed_image' && !files[0].type.startsWith('image/')) throw new Error('Feed imagem precisa de imagem.');
     if (['feed_video', 'reel'].includes(postType) && !files[0].type.startsWith('video/')) throw new Error('Este tipo precisa de vídeo MP4.');
@@ -173,11 +184,11 @@ export default function InstagramScheduler({ session }: { session: any }) {
     if (image.size > 5 * 1024 * 1024) return setNotice('Imagem muito grande para IA. Use até 5 MB.');
     setGeneratingCaption(true); setNotice('Gerando legenda para Instagram...');
     try {
-      const imageBase64 = await fileToBase64(image);
+      const images = await Promise.all(files.filter((file) => file.type.startsWith('image/')).slice(0, 6).map(async (file) => ({ imageBase64: await fileToBase64(file), mimeType: file.type })));
       const res = await fetch(`${supabaseFunctionsUrl}/generate-instagram-caption`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ imageBase64, mimeType: image.type, postType, title, campaign }),
+        body: JSON.stringify({ imageBase64: images[0]?.imageBase64, mimeType: images[0]?.mimeType, images, postType, title, campaign }),
       });
       const data = await res.json();
       if (!res.ok || !data.ok || !data.caption) throw new Error(data.error || 'Falha ao gerar legenda');
@@ -188,17 +199,32 @@ export default function InstagramScheduler({ session }: { session: any }) {
     } finally { setGeneratingCaption(false); }
   }
 
+  const parseTimes = () => recurrenceTimes.split(/[;,\n ]+/).map((item) => item.trim()).filter((item) => /^\d{2}:\d{2}$/.test(item));
+  const parseMonthDays = () => recurrenceMonthDays.split(/[;,\n ]+/).map((item) => Number(item.trim())).filter((day) => day >= 1 && day <= 31);
+  const toggleWeekday = (day: number) => setRecurrenceWeekdays((items) => items.includes(day) ? items.filter((item) => item !== day) : [...items, day].sort());
+  function carouselChunks<T>(items: T[]) {
+    if (postType !== 'carousel' || items.length <= 10) return [items];
+    const chunks: T[][] = [];
+    for (let i = 0; i < items.length; i += 10) chunks.push(items.slice(i, i + 10));
+    if (chunks.length > 1 && chunks[chunks.length - 1].length === 1) chunks[chunks.length - 1].unshift(chunks[chunks.length - 2].pop() as T);
+    return chunks;
+  }
+
   async function createPost(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true); setNotice('');
     try {
       validateFiles();
       const uploaded = await uploadFiles();
-      const { data: post, error } = await supabase.from('cb_instagram_posts').insert({ account_id: selectedAccountId, title, caption, post_type: postType, scheduled_at: new Date(scheduledAt).toISOString(), campaign, timezone: 'America/Sao_Paulo', created_by: session?.user?.id }).select('id').single();
-      if (error) throw error;
-      const { error: mediaError } = await supabase.from('cb_instagram_post_media').insert(uploaded.map((media) => ({ ...media, post_id: post.id })));
-      if (mediaError) throw mediaError;
-      setNotice('Post Instagram agendado.');
+      const chunks = carouselChunks(uploaded);
+      for (let index = 0; index < chunks.length; index++) {
+        const scheduledDate = new Date(new Date(scheduledAt).getTime() + index * 60 * 1000).toISOString();
+        const { data: post, error } = await supabase.from('cb_instagram_posts').insert({ account_id: selectedAccountId, title: chunks.length > 1 ? `${title} (${index + 1}/${chunks.length})` : title, caption, post_type: postType, scheduled_at: scheduledDate, campaign, timezone: 'America/Sao_Paulo', recurrence_enabled: recurrenceFrequency !== 'none', recurrence_frequency: recurrenceFrequency, recurrence_times: recurrenceFrequency === 'none' ? [] : parseTimes(), recurrence_weekdays: recurrenceFrequency === 'weekly' ? recurrenceWeekdays : [], recurrence_month_days: recurrenceFrequency === 'monthly' ? parseMonthDays() : [], recurrence_until: recurrenceUntil ? new Date(recurrenceUntil).toISOString() : null, created_by: session?.user?.id }).select('id').single();
+        if (error) throw error;
+        const { error: mediaError } = await supabase.from('cb_instagram_post_media').insert(chunks[index].map((media, pos) => ({ ...media, position: pos, post_id: post.id })));
+        if (mediaError) throw mediaError;
+      }
+      setNotice(chunks.length > 1 ? `${chunks.length} carrosséis agendados automaticamente (limite Instagram: 10 mídias por carrossel).` : 'Post Instagram agendado.');
       setCaption(''); setFiles([]); setScheduledAt(toLocalInputValue());
       await loadAll();
     } catch (err: any) {
@@ -245,7 +271,9 @@ export default function InstagramScheduler({ session }: { session: any }) {
         <label className="space-y-2"><span className="text-sm font-bold text-gray-200">Data e horário</span><input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#05070D] px-3 py-3 outline-none focus:border-pink-400" /></label>
         <label className="space-y-2"><span className="text-sm font-bold text-gray-200">Tipo</span><select value={postType} onChange={(e) => { setPostType(e.target.value as any); setFiles([]); }} className="w-full rounded-xl border border-white/10 bg-[#05070D] px-3 py-3 outline-none focus:border-pink-400">{POST_TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
         <label className="space-y-2"><span className="text-sm font-bold text-gray-200">Campanha</span><select value={campaign} onChange={(e) => setCampaign(e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#05070D] px-3 py-3 outline-none focus:border-pink-400">{campaigns.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-        <label className="space-y-2 lg:col-span-2"><span className="text-sm font-bold text-gray-200">Mídia {postType === 'carousel' ? '(2 a 10 arquivos)' : '(1 arquivo)'}</span><div className="flex items-center gap-3 rounded-xl border border-white/10 bg-[#05070D] px-3 py-3"><ImagePlus size={18} className="text-pink-300" /><input type="file" multiple={postType === 'carousel'} accept="image/png,image/jpeg,image/webp,video/mp4" onChange={(e) => setFiles(Array.from(e.target.files || []))} className="min-w-0 text-sm" /></div></label>
+        <label className="space-y-2"><span className="text-sm font-bold text-gray-200">Recorrência automática</span><select value={recurrenceFrequency} onChange={(e) => setRecurrenceFrequency(e.target.value as any)} className="w-full rounded-xl border border-white/10 bg-[#05070D] px-3 py-3 outline-none focus:border-pink-400"><option value="none">Uma vez</option><option value="daily">Todos os dias</option><option value="weekly">Semanal</option><option value="monthly">Mensal</option></select></label>
+        {recurrenceFrequency !== 'none' && <div className="grid gap-3 rounded-2xl border border-pink-400/20 bg-pink-400/5 p-4 lg:col-span-2 md:grid-cols-2"><label className="space-y-1"><span className="text-xs font-bold text-pink-100">Horários do dia</span><input value={recurrenceTimes} onChange={(e) => setRecurrenceTimes(e.target.value)} placeholder="09:00, 13:30, 18:00" className="w-full rounded-xl border border-white/10 bg-[#05070D] px-3 py-2 text-sm outline-none focus:border-pink-400" /></label><label className="space-y-1"><span className="text-xs font-bold text-pink-100">Repetir até (opcional)</span><input type="datetime-local" value={recurrenceUntil} onChange={(e) => setRecurrenceUntil(e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#05070D] px-3 py-2 text-sm outline-none focus:border-pink-400" /></label>{recurrenceFrequency === 'weekly' && <div className="md:col-span-2"><p className="mb-2 text-xs font-bold text-pink-100">Dias da semana</p><div className="flex flex-wrap gap-2">{['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map((label, day) => <button type="button" key={label} onClick={() => toggleWeekday(day)} className={`rounded-lg border px-3 py-1 text-xs ${recurrenceWeekdays.includes(day) ? 'border-pink-300 bg-pink-300 text-black' : 'border-white/10 bg-white/5 text-gray-300'}`}>{label}</button>)}</div></div>}{recurrenceFrequency === 'monthly' && <label className="space-y-1 md:col-span-2"><span className="text-xs font-bold text-pink-100">Dias do mês</span><input value={recurrenceMonthDays} onChange={(e) => setRecurrenceMonthDays(e.target.value)} placeholder="1, 10, 20" className="w-full rounded-xl border border-white/10 bg-[#05070D] px-3 py-2 text-sm outline-none focus:border-pink-400" /></label>}</div>}
+        <label className="space-y-2 lg:col-span-2"><span className="text-sm font-bold text-gray-200">Mídia {postType === 'carousel' ? '(2+ arquivos; acima de 10 vira múltiplos carrosséis)' : '(1 arquivo)'}</span><div className="flex items-center gap-3 rounded-xl border border-white/10 bg-[#05070D] px-3 py-3"><ImagePlus size={18} className="text-pink-300" /><input type="file" multiple={postType === 'carousel'} accept="image/png,image/jpeg,image/webp,video/mp4" onChange={(e) => setFiles(Array.from(e.target.files || []))} className="min-w-0 text-sm" /></div></label>
         {!!files.length && <div className="grid gap-3 lg:col-span-2 md:grid-cols-4">{files.map((file, index) => <div key={`${file.name}-${index}`} className="rounded-xl border border-white/10 bg-white/[0.03] p-2"><div className="h-28 overflow-hidden rounded-lg bg-black/30 grid place-items-center">{file.type.startsWith('video/') ? <video src={URL.createObjectURL(file)} className="h-full w-full object-cover" /> : <img src={URL.createObjectURL(file)} className="h-full w-full object-cover" />}</div><p className="mt-2 truncate text-xs text-gray-400">{index + 1}. {file.name}</p></div>)}</div>}
         <label className="space-y-2 lg:col-span-2"><span className="flex flex-wrap items-center justify-between gap-3 text-sm font-bold text-gray-200"><span>Legenda</span><button type="button" onClick={generateCaption} disabled={generatingCaption || !files.some((file) => file.type.startsWith('image/'))} className="rounded-xl border border-purple-400/30 bg-purple-400/10 px-3 py-2 text-xs font-bold text-purple-100 disabled:opacity-40"><Sparkles size={15} className="inline mr-1" />{generatingCaption ? 'Gerando...' : 'Gerar legenda com IA'}</button></span><textarea value={caption} onChange={(e) => setCaption(e.target.value)} className="min-h-[130px] w-full rounded-xl border border-white/10 bg-[#05070D] p-3 outline-none focus:border-pink-400" placeholder="Legenda, hashtags e CTA..." /></label>
         <div className="flex flex-wrap items-center gap-3 lg:col-span-2"><button disabled={loading || generatingCaption} className="rounded-xl bg-pink-400 px-5 py-3 font-bold text-black disabled:opacity-50"><UploadCloud size={18} className="inline mr-2" />Agendar Instagram</button>{notice && <p className="text-sm text-pink-100">{notice}</p>}</div>

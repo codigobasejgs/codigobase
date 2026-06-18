@@ -25,7 +25,7 @@ function cleanCaption(text: string) {
     .replace(/\s+\n/g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim()
-    .slice(0, 520);
+    .slice(0, 1400);
 }
 
 function isBadCaption(text: string) {
@@ -109,18 +109,33 @@ NÃO ACEITO:
 - "Seu site e sistemas funcionando como..."
 - Texto que poderia servir para qualquer imagem.
 
-ENTREGUE EXATAMENTE 1 LEGENDA NESSE FORMATO:
-Linha 1: gancho visual citando algo percebido na imagem.
-Linha 2: benefício concreto para o cliente/empresa.
-Linha 3: CTA curto e natural.
+ENTREGUE 1 LEGENDA NESSE PADRÃO ELITE:
+
+✨ HEADLINE FORTE EM CAIXA ALTA COM EMOJI ✨
+
+Texto emocional e vendedor conectando a imagem com tecnologia, IA, automação, sites, dashboards, marketing ou transformação digital.
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 BENEFÍCIOS QUE CHAMAM ATENÇÃO:
+
+✅ 2 a 4 bullets com benefícios claros, autoridade e desejo.
+✅ Mostrar transformação: menos tarefas manuais, mais leads, atendimento melhor, presença digital forte.
+✅ Se for carrossel, chamar para arrastar; se for story, chamar para responder/chamar no WhatsApp.
+
+━━━━━━━━━━━━━━━━━━━━━━━━
+
+📲 CTA FINAL COM CONTATOS:
+
+🌐 Site: www.codigobase.com.br
+✨ WhatsApp: (11) 98626-2240
+📧 E-mail: projetos.jgs@gmail.com
 
 REGRAS:
-- 3 linhas completas.
-- 110 a 240 caracteres no total.
-- Exatamente 1 emoji.
 - Português BR.
-- Estilo: premium, impactante, desejo, brilho nos olhos.
-- Não invente preço, telefone, datas ou promessas absolutas.
+- Com emojis.
+- Estilo premium, fora da curva, alto impacto, engajamento e conversão.
+- Não invente preço, prazo, garantia ou número falso.
 - Se houver texto na imagem, aproveite o sentido desse texto.
 - Retorne só a legenda final.`;
 
@@ -133,7 +148,7 @@ REGRAS:
     }
 
     if (!caption || isBadCaption(caption)) {
-      caption = `O visual da sua marca precisa causar impacto antes mesmo da primeira conversa. ✨\nSites, sistemas e IA com acabamento profissional para transmitir confiança.\nVamos criar algo nesse nível para sua empresa?`;
+      caption = `✨ O FUTURO DA SUA PRESENÇA DIGITAL COMEÇA AQUI! ✨\n\nA Código Base une tecnologia, IA, automação e design para transformar ideias em experiências que vendem mais e geram autoridade.\n\n━━━━━━━━━━━━━━━━━━━━━━━━\n\n💡 PRONTO PARA LEVAR SUA EMPRESA AO PRÓXIMO NÍVEL?\n\n🌐 Site: www.codigobase.com.br\n✨ WhatsApp: (11) 98626-2240\n📧 E-mail: projetos.jgs@gmail.com`;
     }
 
     return json({ ok: true, caption, model });

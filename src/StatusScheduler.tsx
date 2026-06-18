@@ -18,6 +18,12 @@ type StatusPost = {
   publishing_started_at: string | null;
   attempt_count: number | null;
   error_message: string | null;
+  recurrence_enabled: boolean;
+  recurrence_frequency: 'none' | 'daily' | 'weekly' | 'monthly';
+  recurrence_times: string[] | null;
+  recurrence_weekdays: number[] | null;
+  recurrence_month_days: number[] | null;
+  recurrence_until: string | null;
   created_at: string;
 };
 
@@ -35,6 +41,11 @@ export default function StatusScheduler({ session }: { session: any }) {
   const [campaignFilter, setCampaignFilter] = useState('all');
   const [scheduledAt, setScheduledAt] = useState(toLocalInputValue());
   const [repeatType, setRepeatType] = useState<'once' | 'daily' | 'weekly'>('once');
+  const [recurrenceFrequency, setRecurrenceFrequency] = useState<'none' | 'daily' | 'weekly' | 'monthly'>('none');
+  const [recurrenceTimes, setRecurrenceTimes] = useState('09:00');
+  const [recurrenceWeekdays, setRecurrenceWeekdays] = useState<number[]>([1,2,3,4,5]);
+  const [recurrenceMonthDays, setRecurrenceMonthDays] = useState('1,15');
+  const [recurrenceUntil, setRecurrenceUntil] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [generatingCaption, setGeneratingCaption] = useState(false);
@@ -102,6 +113,10 @@ export default function StatusScheduler({ session }: { session: any }) {
     }
   }
 
+  const parseTimes = () => recurrenceTimes.split(/[;,\n ]+/).map((item) => item.trim()).filter((item) => /^\d{2}:\d{2}$/.test(item));
+  const parseMonthDays = () => recurrenceMonthDays.split(/[;,\n ]+/).map((item) => Number(item.trim())).filter((day) => day >= 1 && day <= 31);
+  const toggleWeekday = (day: number) => setRecurrenceWeekdays((items) => items.includes(day) ? items.filter((item) => item !== day) : [...items, day].sort());
+
   async function createPost(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -115,6 +130,12 @@ export default function StatusScheduler({ session }: { session: any }) {
         scheduled_at: scheduledIso,
         repeat_type: repeatType,
         campaign,
+        recurrence_enabled: recurrenceFrequency !== 'none',
+        recurrence_frequency: recurrenceFrequency,
+        recurrence_times: recurrenceFrequency === 'none' ? [] : parseTimes(),
+        recurrence_weekdays: recurrenceFrequency === 'weekly' ? recurrenceWeekdays : [],
+        recurrence_month_days: recurrenceFrequency === 'monthly' ? parseMonthDays() : [],
+        recurrence_until: recurrenceUntil ? new Date(recurrenceUntil).toISOString() : null,
         timezone: 'America/Sao_Paulo',
         created_by: session?.user?.id,
         ...media,
@@ -184,8 +205,9 @@ export default function StatusScheduler({ session }: { session: any }) {
       <form onSubmit={createPost} className="grid gap-4 rounded-2xl border border-white/10 bg-black/20 p-4 lg:grid-cols-2">
         <label className="space-y-2"><span className="text-sm font-bold text-gray-200">Título interno</span><input value={title} onChange={(e) => setTitle(e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#05070D] px-3 py-3 outline-none focus:border-orange-400" /></label>
         <label className="space-y-2"><span className="text-sm font-bold text-gray-200">Data e horário</span><input type="datetime-local" value={scheduledAt} onChange={(e) => setScheduledAt(e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#05070D] px-3 py-3 outline-none focus:border-orange-400" /></label>
-        <label className="space-y-2"><span className="text-sm font-bold text-gray-200">Repetição</span><select value={repeatType} onChange={(e) => setRepeatType(e.target.value as any)} className="w-full rounded-xl border border-white/10 bg-[#05070D] px-3 py-3 outline-none focus:border-orange-400"><option value="once">Uma vez</option><option value="daily">Todos os dias</option><option value="weekly">Semanal</option></select></label>
+        <label className="space-y-2"><span className="text-sm font-bold text-gray-200">Recorrência automática</span><select value={recurrenceFrequency} onChange={(e) => { setRecurrenceFrequency(e.target.value as any); setRepeatType(e.target.value === 'daily' ? 'daily' : e.target.value === 'weekly' ? 'weekly' : 'once'); }} className="w-full rounded-xl border border-white/10 bg-[#05070D] px-3 py-3 outline-none focus:border-orange-400"><option value="none">Uma vez</option><option value="daily">Todos os dias</option><option value="weekly">Semanal</option><option value="monthly">Mensal</option></select></label>
         <label className="space-y-2"><span className="text-sm font-bold text-gray-200">Campanha</span><select value={campaign} onChange={(e) => setCampaign(e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#05070D] px-3 py-3 outline-none focus:border-orange-400">{campaigns.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        {recurrenceFrequency !== 'none' && <div className="grid gap-3 rounded-2xl border border-orange-400/20 bg-orange-400/5 p-4 lg:col-span-2 md:grid-cols-2"><label className="space-y-1"><span className="text-xs font-bold text-orange-100">Horários do dia</span><input value={recurrenceTimes} onChange={(e) => setRecurrenceTimes(e.target.value)} placeholder="09:00, 13:30, 18:00" className="w-full rounded-xl border border-white/10 bg-[#05070D] px-3 py-2 text-sm outline-none focus:border-orange-400" /></label><label className="space-y-1"><span className="text-xs font-bold text-orange-100">Repetir até (opcional)</span><input type="datetime-local" value={recurrenceUntil} onChange={(e) => setRecurrenceUntil(e.target.value)} className="w-full rounded-xl border border-white/10 bg-[#05070D] px-3 py-2 text-sm outline-none focus:border-orange-400" /></label>{recurrenceFrequency === 'weekly' && <div className="md:col-span-2"><p className="mb-2 text-xs font-bold text-orange-100">Dias da semana</p><div className="flex flex-wrap gap-2">{['Dom','Seg','Ter','Qua','Qui','Sex','Sáb'].map((label, day) => <button type="button" key={label} onClick={() => toggleWeekday(day)} className={`rounded-lg border px-3 py-1 text-xs ${recurrenceWeekdays.includes(day) ? 'border-orange-300 bg-orange-300 text-black' : 'border-white/10 bg-white/5 text-gray-300'}`}>{label}</button>)}</div></div>}{recurrenceFrequency === 'monthly' && <label className="space-y-1 md:col-span-2"><span className="text-xs font-bold text-orange-100">Dias do mês</span><input value={recurrenceMonthDays} onChange={(e) => setRecurrenceMonthDays(e.target.value)} placeholder="1, 10, 20" className="w-full rounded-xl border border-white/10 bg-[#05070D] px-3 py-2 text-sm outline-none focus:border-orange-400" /></label>}</div>}
         <label className="space-y-2"><span className="text-sm font-bold text-gray-200">Imagem ou vídeo</span><div className="flex items-center gap-3 rounded-xl border border-white/10 bg-[#05070D] px-3 py-3"><ImagePlus size={18} className="text-orange-300" /><input type="file" accept="image/png,image/jpeg,image/webp,video/mp4" onChange={(e) => setFile(e.target.files?.[0] || null)} className="min-w-0 text-sm" /></div></label>
         <label className="space-y-2 lg:col-span-2"><span className="flex flex-wrap items-center justify-between gap-3 text-sm font-bold text-gray-200"><span>Legenda do status</span><button type="button" onClick={generateCaption} disabled={generatingCaption || !file || !file.type.startsWith('image/')} className="rounded-xl border border-purple-400/30 bg-purple-400/10 px-3 py-2 text-xs font-bold text-purple-100 disabled:opacity-40"><Sparkles size={15} className="inline mr-1" />{generatingCaption ? 'Gerando...' : 'Gerar legenda com IA'}</button></span><textarea value={caption} onChange={(e) => setCaption(e.target.value)} className="min-h-[110px] w-full rounded-xl border border-white/10 bg-[#05070D] p-3 outline-none focus:border-orange-400" placeholder="Texto que acompanha a imagem/vídeo no status..." /></label>
         <div className="flex flex-wrap items-center gap-3 lg:col-span-2"><button disabled={loading || generatingCaption || (!caption.trim() && !file)} className="rounded-xl bg-orange-400 px-5 py-3 font-bold text-black disabled:opacity-50"><UploadCloud size={18} className="inline mr-2" />Agendar status</button>{notice && <p className="text-sm text-orange-100">{notice}</p>}</div>
@@ -203,7 +225,7 @@ export default function StatusScheduler({ session }: { session: any }) {
               {post.media_url ? (post.media_mime_type?.startsWith('video/') ? <video src={post.media_url} className="h-full w-full object-cover" /> : <img src={post.media_url} className="h-full w-full object-cover" />) : <ImagePlus className="text-gray-500" />}
             </div>
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2"><h3 className="font-bold text-white">{post.title || 'Status'}</h3><span className={`rounded-full border px-2 py-0.5 text-xs ${badge(post.status)}`}>{post.status}</span><span className="rounded-full border border-white/10 px-2 py-0.5 text-xs text-gray-300">{post.repeat_type}</span>{post.campaign && <span className="rounded-full border border-orange-400/20 px-2 py-0.5 text-xs text-orange-200">{post.campaign}</span>}</div>
+              <div className="flex flex-wrap items-center gap-2"><h3 className="font-bold text-white">{post.title || 'Status'}</h3><span className={`rounded-full border px-2 py-0.5 text-xs ${badge(post.status)}`}>{post.status}</span><span className="rounded-full border border-white/10 px-2 py-0.5 text-xs text-gray-300">{post.recurrence_enabled ? `${post.recurrence_frequency} ${post.recurrence_times?.join(',') || ''}` : post.repeat_type}</span>{post.campaign && <span className="rounded-full border border-orange-400/20 px-2 py-0.5 text-xs text-orange-200">{post.campaign}</span>}</div>
               <p className="mt-1 text-sm text-gray-300 line-clamp-2">{post.caption || 'Sem legenda'}</p>
               <p className="mt-2 text-xs text-gray-500">Agendado: {new Date(post.scheduled_at).toLocaleString('pt-BR')} {post.published_at ? `• Publicado: ${new Date(post.published_at).toLocaleString('pt-BR')}` : ''}</p>
               <p className="mt-1 text-xs text-gray-600">Tentativas: {post.attempt_count || 0}{post.last_attempt_at ? ` • Última: ${new Date(post.last_attempt_at).toLocaleString('pt-BR')}` : ''}</p>

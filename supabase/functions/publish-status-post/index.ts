@@ -112,6 +112,46 @@ async function claimPost(id: string, lockId: string) {
   return data;
 }
 
+const SAO_PAULO_OFFSET_HOURS = 3;
+function localParts(iso: string) { const d = new Date(new Date(iso).getTime() - SAO_PAULO_OFFSET_HOURS * 60 * 60 * 1000); return { y: d.getUTCFullYear(), m: d.getUTCMonth(), day: d.getUTCDate(), dow: d.getUTCDay(), h: d.getUTCHours(), min: d.getUTCMinutes() }; }
+function fromLocal(y: number, m: number, day: number, hhmm: string) { const [h, min] = String(hhmm || '09:00').split(':').map(Number); return new Date(Date.UTC(y, m, day, (h || 0) + SAO_PAULO_OFFSET_HOURS, min || 0, 0, 0)); }
+function recurrenceTimes(post: any) { const times = Array.isArray(post.recurrence_times) && post.recurrence_times.length ? post.recurrence_times : null; if (times) return times; const p = localParts(post.scheduled_at); return [`${String(p.h).padStart(2, '0')}:${String(p.min).padStart(2, '0')}`]; }
+function nextSchedule(post: any) {
+  const current = new Date(post.scheduled_at);
+  if (post.recurrence_enabled && post.recurrence_frequency && post.recurrence_frequency !== 'none') {
+    const base = localParts(post.scheduled_at);
+    const until = post.recurrence_until ? new Date(post.recurrence_until).getTime() : null;
+    for (let add = 0; add <= 370; add++) {
+      const probe = new Date(Date.UTC(base.y, base.m, base.day + add));
+      const y = probe.getUTCFullYear(), m = probe.getUTCMonth(), day = probe.getUTCDate(), dow = probe.getUTCDay();
+      const allowed = post.recurrence_frequency === 'daily' || (post.recurrence_frequency === 'weekly' && (!post.recurrence_weekdays?.length || post.recurrence_weekdays.includes(dow))) || (post.recurrence_frequency === 'monthly' && (!post.recurrence_month_days?.length || post.recurrence_month_days.includes(day)));
+      if (!allowed) continue;
+      for (const time of recurrenceTimes(post)) {
+        const candidate = fromLocal(y, m, day, time);
+        if (candidate.getTime() <= current.getTime() + 60 * 1000) continue;
+        if (until && candidate.getTime() > until) return null;
+        return candidate.toISOString();
+      }
+    }
+    return null;
+  }
+  if (post.repeat_type === 'daily') return new Date(current.getTime() + 24 * 60 * 60 * 1000).toISOString();
+  if (post.repeat_type === 'weekly') return new Date(current.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  return null;
+}
+async function ensureNextRepeat(post: any) {
+  const next = nextSchedule(post);
+  if (!next) return null;
+  const sourceId = post.recurrence_source_id || post.id;
+  const { data: existing, error: findError } = await supabase.from('cb_whatsapp_status_posts').select('id').eq('recurrence_source_id', sourceId).eq('scheduled_at', next).maybeSingle();
+  if (findError) throw new Error(findError.message);
+  if (existing) return existing.id;
+  const { id, published_at, last_attempt_at, error_message, created_at, updated_at, publish_lock_id, publishing_started_at, attempt_count, last_success_at, last_evolution_status, evolution_response, ...clone } = post;
+  const { data, error } = await supabase.from('cb_whatsapp_status_posts').insert({ ...clone, recurrence_source_id: sourceId, scheduled_at: next, status: 'scheduled', published_at: null, last_attempt_at: null, error_message: null, attempt_count: 0, publishing_started_at: null, publish_lock_id: null, last_success_at: null, last_evolution_status: null, evolution_response: null }).select('id').single();
+  if (error) throw new Error(error.message);
+  return data.id;
+}
+
 async function finalize(post: any, lockId: string, outcome: PublishOutcome) {
   const update: any = { status: outcome.status, updated_at: nowIso(), last_evolution_status: outcome.status, evolution_response: outcome.result || { warning: outcome.warning }, error_message: outcome.warning || null };
   if (outcome.status === 'published') {
@@ -121,7 +161,8 @@ async function finalize(post: any, lockId: string, outcome: PublishOutcome) {
   }
   const { error } = await supabase.from('cb_whatsapp_status_posts').update(update).eq('id', post.id).eq('publish_lock_id', lockId);
   if (error) throw new Error(error.message);
-  await logEvent(post.id, lockId, outcome.status === 'published' ? 'finalized_published' : 'timeout_pending_confirmation', outcome.status, outcome.warning, outcome.result, outcome.duration_ms);
+  const nextId = outcome.status === 'published' ? await ensureNextRepeat(post) : null;
+  await logEvent(post.id, lockId, outcome.status === 'published' ? 'finalized_published' : 'timeout_pending_confirmation', outcome.status, nextId ? `next ${nextId}` : outcome.warning, outcome.result, outcome.duration_ms);
 }
 
 async function fail(postId: string | undefined, lockId: string | undefined, error: unknown) {
