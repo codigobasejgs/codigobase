@@ -2386,6 +2386,16 @@ Gostaria de agendar meu diagnóstico gratuito de TI e computadores para entender
 
       </main>
 
+      <a
+         href="/admin"
+         className="fixed bottom-6 left-6 z-50 inline-flex items-center gap-2 rounded-full border border-[#00D9FF]/40 bg-[#05070D]/90 px-4 py-3 text-xs font-bold uppercase tracking-[0.18em] text-[#00D9FF] shadow-[0_0_30px_rgba(0,217,255,0.18)] backdrop-blur transition-all hover:scale-105 hover:border-[#00D9FF] hover:bg-[#00D9FF]/10 hover:text-white print:hidden"
+         title="Acesso restrito ao painel administrativo"
+         aria-label="Acessar painel administrativo restrito"
+      >
+         <ShieldCheck size={16} />
+         <span>Admin</span>
+      </a>
+
       {/* Floating Back to Top Button */}
       {showBackToTop && (
           <button
