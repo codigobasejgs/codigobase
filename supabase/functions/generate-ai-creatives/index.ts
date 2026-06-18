@@ -9,7 +9,7 @@ const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY') || '';
 const OPENAI_IMAGE_MODEL = Deno.env.get('OPENAI_IMAGE_MODEL') || 'gpt-image-1';
 const OPENAI_IMAGE_SIZE = Deno.env.get('OPENAI_IMAGE_SIZE') || '1024x1792';
 const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY') || Deno.env.get('GOOGLE_API_KEY') || '';
-const GEMINI_IMAGE_MODEL = Deno.env.get('GEMINI_IMAGE_MODEL') || 'imagen-3.0-generate-002';
+const GEMINI_IMAGE_MODEL = Deno.env.get('GEMINI_IMAGE_MODEL') || 'gemini-3-pro-image-preview';
 const BRAND_LOGO_URL = Deno.env.get('BRAND_LOGO_URL') || 'https://www.codigobase.com.br/logo.png';
 const BRAND_SITE = Deno.env.get('BRAND_SITE') || 'www.codigobase.com.br';
 const BRAND_WHATSAPP = Deno.env.get('BRAND_WHATSAPP') || '(11) 98626-2240';
@@ -52,7 +52,7 @@ async function applyBrandOverlay(b64: string) {
   return btoa(bin);
 }
 async function generateOpenAiImage(prompt: string) { const res = await fetch('https://api.openai.com/v1/images/generations', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${OPENAI_API_KEY}` }, body: JSON.stringify({ model: OPENAI_IMAGE_MODEL, prompt, size: OPENAI_IMAGE_SIZE, n: 1 }) }); const data = await res.json().catch(() => ({})); if (!res.ok) throw new Error(data?.error?.message || `OpenAI image ${res.status}`); const b64 = data?.data?.[0]?.b64_json; if (!b64) throw new Error('OpenAI não retornou imagem base64'); return { b64: await applyBrandOverlay(b64), provider: 'openai', response: data }; }
-async function generateGeminiImage(prompt: string, apiKey: string) { const ai = new GoogleGenAI({ apiKey }); const data = await ai.models.generateImages({ model: GEMINI_IMAGE_MODEL, prompt, config: { numberOfImages: 1, aspectRatio: '9:16', outputMimeType: 'image/png', includeRaiReason: true } }); const b64 = data?.generatedImages?.[0]?.image?.imageBytes; if (!b64) throw new Error('Gemini/Imagen não retornou imagem base64'); return { b64: await applyBrandOverlay(b64), provider: 'gemini', response: data }; }
+async function generateGeminiImage(prompt: string, apiKey: string) { const ai = new GoogleGenAI({ apiKey }); if (GEMINI_IMAGE_MODEL.startsWith('imagen-')) { const data = await ai.models.generateImages({ model: GEMINI_IMAGE_MODEL, prompt, config: { numberOfImages: 1, aspectRatio: '9:16', outputMimeType: 'image/png', includeRaiReason: true } }); const b64 = data?.generatedImages?.[0]?.image?.imageBytes; if (!b64) throw new Error('Gemini/Imagen não retornou imagem base64'); return { b64: await applyBrandOverlay(b64), provider: 'gemini', response: data }; } const config = GEMINI_IMAGE_MODEL.includes('pro-image') ? { imageConfig: { aspectRatio: '9:16', imageSize: '1K' } } : undefined; const data = await ai.models.generateContent({ model: GEMINI_IMAGE_MODEL, contents: prompt, config }); const part = data?.candidates?.[0]?.content?.parts?.find((item: any) => item.inlineData?.data); const b64 = part?.inlineData?.data; if (!b64) throw new Error('Gemini não retornou imagem base64'); return { b64: await applyBrandOverlay(b64), provider: 'gemini', response: data }; }
 async function generateImage(prompt: string, provider: 'openai' | 'gemini') { if (provider === 'gemini') { const apiKey = await getGeminiKey(); if (!apiKey) throw new Error('GEMINI_API_KEY não configurada'); return generateGeminiImage(prompt, apiKey); } if (!OPENAI_API_KEY) throw new Error('OPENAI_API_KEY não configurada'); return generateOpenAiImage(prompt); }
 async function createDraft(userId: string, draftType: 'story' | 'carousel', platformTargets: string[], themeCategory: string, themeOption: string, slideCount: number, scheduledAt: string | null, provider: 'openai' | 'gemini') {
   const title = `${draftType === 'story' ? 'Story' : 'Carrossel'} • ${themeCategory} • ${themeOption} • ${provider === 'gemini' ? 'Gemini' : 'OpenAI'}`;
@@ -82,13 +82,13 @@ Deno.serve(async (req) => {
     const themeCategory = body.themeCategory || 'IA / Chatbot';
     const themeOption = body.themeOption || 'Vendas';
     const platforms = Array.isArray(body.platforms) && body.platforms.length ? body.platforms : ['instagram', 'whatsapp'];
-    const storyCount = Math.max(0, Math.min(10, Number(body.storyCount || 3)));
-    const carouselSlideCount = Math.max(2, Math.min(10, Number(body.carouselSlideCount || 5)));
+    const storyCount = Math.max(0, Math.min(10, Number(body.storyCount ?? 3)));
+    const carouselSlideCount = Math.max(0, Math.min(10, Number(body.carouselSlideCount ?? 5)));
     const scheduledAt = body.scheduledAt || null;
     const provider = body.provider === 'gemini' ? 'gemini' : 'openai';
     const drafts: string[] = [];
     for (let i = 0; i < storyCount; i++) drafts.push(await createDraft(user.id, 'story', platforms, themeCategory, themeOption, 1, scheduledAt, provider));
-    drafts.push(await createDraft(user.id, 'carousel', platforms, themeCategory, themeOption, carouselSlideCount, scheduledAt, provider));
+    if (carouselSlideCount > 0) drafts.push(await createDraft(user.id, 'carousel', platforms, themeCategory, themeOption, carouselSlideCount, scheduledAt, provider));
     return json({ ok: true, drafts });
   } catch (error) {
     const message = String(error?.message || error);
