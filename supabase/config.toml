@@ -23,3 +23,18 @@ verify_jwt = true
 
 [functions.suggest-reply]
 verify_jwt = true
+
+[functions.instagram-oauth-start]
+verify_jwt = true
+
+[functions.instagram-oauth-callback]
+verify_jwt = false
+
+[functions.publish-instagram-post]
+verify_jwt = true
+
+[functions.instagram-scheduler]
+verify_jwt = false
+
+[functions.generate-instagram-caption]
+verify_jwt = true

@@ -17,6 +17,7 @@ function staleIso() { return new Date(Date.now() - STALE_MINUTES * 60 * 1000).to
 function json(data: unknown, init: ResponseInit = {}) { return new Response(JSON.stringify(data), { ...init, headers: { ...corsHeaders, 'Content-Type': 'application/json', ...(init.headers || {}) } }); }
 function cleanEndpoint(endpoint: string) { return endpoint.replace(/^.*(?:Program Files\/Git|Git)[\\/]/, '').replace(/^\/+/, ''); }
 function buildEvolutionUrl() { return `${EVOLUTION_API_URL.replace(/\/+$/, '')}/${cleanEndpoint(STATUS_ENDPOINT)}/${EVOLUTION_INSTANCE}`; }
+function isGatewayTimeout(status: number, text: string) { return status === 524 || /524:\s*A timeout occurred|Cloudflare/i.test(text); }
 
 async function logEvent(postId: string | undefined, lockId: string | undefined, eventType: string, status: string, message?: string, response?: unknown, duration_ms?: number) {
   console.log(JSON.stringify({ postId, lockId, eventType, status, message, duration_ms }));
@@ -81,12 +82,15 @@ async function sendStatus(post: any, lockId: string): Promise<PublishOutcome> {
     const text = await res.text();
     let result: unknown;
     try { result = JSON.parse(text); } catch { result = { raw: text }; }
-    if (!res.ok) throw new Error(`${res.status} ${text.slice(0, 500)}`);
+    if (!res.ok) {
+      if (isGatewayTimeout(res.status, text)) return { status: 'pending_confirmation', warning: `Evolution/API returned Cloudflare 524 timeout; check WhatsApp before retrying to avoid duplicate status. ${text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').slice(0, 300)}`, result, duration_ms: Date.now() - started };
+      throw new Error(`${res.status} ${text.slice(0, 500)}`);
+    }
     return { status: 'published', result, duration_ms: Date.now() - started };
   } catch (error: any) {
     clearTimeout(timeout);
     if (error?.name === 'AbortError' || String(error?.message || error).includes('aborted')) {
-      return { status: 'published', warning: `Evolution timeout after ${SEND_TIMEOUT_MS}ms; request was treated as posted to avoid false error/duplicate retry.`, duration_ms: Date.now() - started };
+      return { status: 'pending_confirmation', warning: `Evolution timeout after ${SEND_TIMEOUT_MS}ms; check WhatsApp before retrying to avoid duplicate status.`, duration_ms: Date.now() - started };
     }
     throw error;
   }

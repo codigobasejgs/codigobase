@@ -6,6 +6,8 @@ coverage/
 *.log
 .webhook-secret.local
 .status-cron-secret.local
+.instagram-cron-secret.local
+.vercel-env-debug
 .env*
 !.env.example
 
