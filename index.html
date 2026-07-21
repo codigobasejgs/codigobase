@@ -18,12 +18,13 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <script id="aclib" type="text/javascript" src="//acscdn.com/script/aclib.js"></script>
-    <script id="aclib-sri" type="text/javascript" src="https://acscdn.com/script/aclib.js" integrity="sha384-Gx4M71lVdD09C+Qx1y3ydZdIXlLNJ+BsFAWHPyqymz2cx6fmgT+Ori9AwGgQ3M8B" crossorigin="anonymous"></script>
-    <script type="text/javascript">
-      aclib.runAutoTag({
-        zoneId: 'isjuitfmf3',
-      });
+    <script>
+      if (!location.pathname.startsWith('/admin')) {
+        const script = document.createElement('script');
+        script.src = 'https://acscdn.com/script/aclib.js';
+        script.onload = () => window.aclib?.runAutoTag({ zoneId: 'isjuitfmf3' });
+        document.body.appendChild(script);
+      }
     </script>
   </body>
 </html>

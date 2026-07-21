@@ -280,8 +280,8 @@ Deno.serve(async (req) => {
 
     await supabase.from('cb_webhook_logs').insert({ event: info.event, remote_jid: info.remoteJid, ignored: false, payload: {} });
 
+    const phoneE164 = `+${phone}`;
     if (optedOut) {
-      const phoneE164 = `+${phone}`;
       const { error: suppressionError } = await supabase.from('cb_whatsapp_suppressions').upsert({
         phone_e164: phoneE164,
         reason: 'opt_out',
@@ -297,6 +297,12 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ ok: true, ai: 'paused', optOut: true }), { headers: corsHeaders });
     }
 
+    const { error: repliedError } = await supabase.from('cb_outbound_prospects')
+      .update({ status: 'replied', updated_at: receivedAt })
+      .eq('phone_e164', phoneE164)
+      .eq('status', 'contacted');
+    if (repliedError) throw repliedError;
+
     if (!settings?.enabled || conversation.ai_paused || botDetected || wantsHuman) {
       return new Response(JSON.stringify({ ok: true, ai: 'paused' }), { headers: corsHeaders });
     }
@@ -309,6 +315,14 @@ Deno.serve(async (req) => {
     const aiText = await askGemini(aiPrompt, mediaPart, apiKey, model);
 
     if (aiText) {
+      const [{ data: latestConversation, error: latestConversationError }, { data: suppression, error: suppressionError }] = await Promise.all([
+        supabase.from('cb_whatsapp_conversations').select('ai_paused').eq('id', conversation.id).single(),
+        supabase.from('cb_whatsapp_suppressions').select('id').eq('phone_e164', phoneE164).maybeSingle(),
+      ]);
+      if (latestConversationError || suppressionError) throw latestConversationError || suppressionError;
+      if (latestConversation?.ai_paused || suppression) {
+        return new Response(JSON.stringify({ ok: true, ai: 'paused_before_send' }), { headers: corsHeaders });
+      }
       await sendWhatsAppText(info.remoteJid, aiText);
       await supabase.from('cb_whatsapp_messages').insert({
         conversation_id: conversation.id,

@@ -81,14 +81,21 @@ Deno.serve(async (req) => {
   const claimed = claimRows?.[0];
   if (!claimed) return json({ ok: false, error: 'draft_not_eligible_or_suppressed' }, 409);
 
+  const claimedBody = String(claimed.body || '');
+  const claimedPhone = String(claimed.phone_e164 || '');
+  if (!/^\+[1-9]\d{9,14}$/.test(claimedPhone) || !hasCanonicalOptOutNotice(claimedBody)) {
+    const { error: stateError } = await admin.from('cb_outbound_message_drafts').update({ status: 'error', error_message: 'Snapshot do claim inválido', updated_at: new Date().toISOString() }).eq('id', draft.id).eq('send_lock_id', lockId).eq('status', 'sending');
+    return json({ ok: false, error: stateError ? 'invalid_claim_persistence_failed' : 'invalid_claim_snapshot' }, 500);
+  }
+
   await log({ prospect_id: prospect.id, draft_id: draft.id, lock_id: lockId, event_type: 'send_started', status: 'sending' });
   const startedMs = Date.now();
 
   try {
-    const { data: suppressionAfterClaim, error: suppressionAfterClaimError } = await admin.from('cb_whatsapp_suppressions').select('id').eq('phone_e164', prospect.phone_e164).maybeSingle();
+    const { data: suppressionAfterClaim, error: suppressionAfterClaimError } = await admin.from('cb_whatsapp_suppressions').select('id').eq('phone_e164', claimedPhone).maybeSingle();
     if (suppressionAfterClaimError) {
-      await admin.from('cb_outbound_message_drafts').update({ status: 'pending_confirmation', error_message: 'Falha ao verificar supressão após claim; envio não iniciado', updated_at: new Date().toISOString() }).eq('id', draft.id).eq('send_lock_id', lockId);
-      return json({ ok: false, error: 'suppression_check_failed' }, 503);
+      const { error: stateError } = await admin.from('cb_outbound_message_drafts').update({ status: 'error', error_message: 'Falha ao verificar supressão após claim; envio não iniciado', updated_at: new Date().toISOString() }).eq('id', draft.id).eq('send_lock_id', lockId).eq('status', 'sending');
+      return json({ ok: false, error: stateError ? 'suppression_check_persistence_failed' : 'suppression_check_failed' }, 503);
     }
     if (suppressionAfterClaim) {
       const { error: blockError } = await admin.from('cb_outbound_message_drafts').update({ status: 'blocked', error_message: 'Contato suprimido antes do envio', updated_at: new Date().toISOString() }).eq('id', draft.id).eq('send_lock_id', lockId);
@@ -104,7 +111,7 @@ Deno.serve(async (req) => {
       response = await fetch(`${EVOLUTION_API_URL}/message/sendText/${EVOLUTION_INSTANCE}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', apikey: EVOLUTION_API_KEY },
-        body: JSON.stringify({ number: prospect.phone_e164.slice(1), text: draft.body, idempotencyKey: String(draft.idempotency_key) }),
+        body: JSON.stringify({ number: claimedPhone.slice(1), text: claimedBody, idempotencyKey: String(claimed.idempotency_key) }),
         signal: controller.signal,
       });
     } finally {

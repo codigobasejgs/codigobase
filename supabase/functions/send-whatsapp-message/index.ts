@@ -29,6 +29,11 @@ Deno.serve(async (req) => {
     const { data: conversation, error: conversationError } = await supabase.from('cb_whatsapp_conversations').select('id, remote_jid').eq('id', conversationId).single();
     if (conversationError || !conversation || conversation.remote_jid !== remoteJid) return new Response(JSON.stringify({ ok: false, error: 'conversation_mismatch' }), { status: 409, headers: corsHeaders });
 
+    const phoneE164 = `+${remoteJid.split('@')[0].replace(/\D/g, '')}`;
+    const { data: suppression, error: suppressionError } = await supabase.from('cb_whatsapp_suppressions').select('id').eq('phone_e164', phoneE164).maybeSingle();
+    if (suppressionError) return new Response(JSON.stringify({ ok: false, error: 'suppression_check_failed' }), { status: 503, headers: corsHeaders });
+    if (suppression) return new Response(JSON.stringify({ ok: false, error: 'contact_suppressed' }), { status: 409, headers: corsHeaders });
+
     const response = await fetch(`${EVOLUTION_API_URL}/message/sendText/${EVOLUTION_INSTANCE}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', apikey: EVOLUTION_API_KEY },
@@ -38,25 +43,28 @@ Deno.serve(async (req) => {
     if (!response.ok) throw new Error(await response.text());
     const result = await response.json();
 
-    if (conversationId) {
-      await supabase.from('cb_whatsapp_messages').insert({
-        conversation_id: conversationId,
-        remote_jid: remoteJid,
-        from_me: true,
-        sender_type: 'human',
-        message_type: 'text',
-        content: text,
-        raw_payload: result,
-      });
+    const { error: messageError } = await supabase.from('cb_whatsapp_messages').insert({
+      conversation_id: conversationId,
+      evolution_message_id: result?.key?.id || result?.message?.key?.id || result?.id || null,
+      remote_jid: remoteJid,
+      from_me: true,
+      sender_type: 'human',
+      message_type: 'text',
+      content: text,
+      raw_payload: result,
+    });
 
-      if (pauseAi) {
-        await supabase.from('cb_whatsapp_conversations').update({
-          ai_paused: true,
-          pause_reason: 'human_intervention',
-          last_human_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        }).eq('id', conversationId);
-      }
+    let pauseError = null;
+    if (pauseAi) {
+      ({ error: pauseError } = await supabase.from('cb_whatsapp_conversations').update({
+        ai_paused: true,
+        pause_reason: 'human_intervention',
+        last_human_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq('id', conversationId));
+    }
+    if (messageError || pauseError) {
+      return new Response(JSON.stringify({ ok: false, error: 'pending_confirmation', result }), { status: 500, headers: corsHeaders });
     }
 
     return new Response(JSON.stringify({ ok: true, result }), { headers: corsHeaders });
