@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
+import { isOptOutMessage } from '../_shared/outboundSafety.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -100,9 +101,24 @@ function detectService(text: string) {
 async function fetchMediaAsPart(info: MessageInfo) {
   if (!info.mediaUrl || !info.mediaMimeType) return null;
   try {
-    const response = await fetch(info.mediaUrl, { headers: { apikey: EVOLUTION_API_KEY } });
+    const mediaUrl = new URL(info.mediaUrl);
+    const evolutionUrl = new URL(EVOLUTION_API_URL);
+    if (mediaUrl.protocol !== 'https:' || mediaUrl.origin !== evolutionUrl.origin) return null;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 10_000);
+    let response: Response;
+    try {
+      response = await fetch(mediaUrl, { headers: { apikey: EVOLUTION_API_KEY }, redirect: 'error', signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
+    }
     if (!response.ok) return null;
-    const bytes = new Uint8Array(await response.arrayBuffer());
+    const length = Number(response.headers.get('content-length') || 0);
+    if (length > 8 * 1024 * 1024) return null;
+    const buffer = await response.arrayBuffer();
+    if (buffer.byteLength > 8 * 1024 * 1024) return null;
+    const bytes = new Uint8Array(buffer);
     let binary = '';
     for (const b of bytes) binary += String.fromCharCode(b);
     return {
@@ -160,7 +176,10 @@ Deno.serve(async (req) => {
 
   try {
     const url = new URL(req.url);
-    if (WEBHOOK_SECRET && url.searchParams.get('secret') !== WEBHOOK_SECRET) {
+    if (!WEBHOOK_SECRET) {
+      return new Response(JSON.stringify({ error: 'webhook_not_configured' }), { status: 503, headers: corsHeaders });
+    }
+    if (url.searchParams.get('secret') !== WEBHOOK_SECRET) {
       return new Response(JSON.stringify({ error: 'unauthorized' }), { status: 401, headers: corsHeaders });
     }
 
@@ -170,6 +189,10 @@ Deno.serve(async (req) => {
     if (!info) {
       await supabase.from('cb_webhook_logs').insert({ event: payload?.event, ignored: true, ignore_reason: 'missing_remote_jid', payload });
       return new Response(JSON.stringify({ ok: true, ignored: true }), { headers: corsHeaders });
+    }
+    if (!info.messageId) {
+      await supabase.from('cb_webhook_logs').insert({ event: info.event, remote_jid: info.remoteJid, ignored: true, ignore_reason: 'missing_message_id', payload: {} });
+      return new Response(JSON.stringify({ ok: true, ignored: true, reason: 'missing_message_id' }), { headers: corsHeaders });
     }
 
     const group = isGroup(info.remoteJid);
@@ -183,28 +206,38 @@ Deno.serve(async (req) => {
     const wantsHuman = containsAny(info.text || '', settings?.handoff_keywords || []);
     const serviceInterest = detectService(info.text || '');
 
-    const { data: contact } = await supabase.from('cb_whatsapp_contacts').upsert({
+    const phone = phoneFromJid(info.remoteJid);
+    if (!phone) throw new Error('Invalid remote JID');
+
+    const { data: existingContact, error: existingContactError } = await supabase
+      .from('cb_whatsapp_contacts')
+      .select('*')
+      .eq('remote_jid', info.remoteJid)
+      .maybeSingle();
+    if (existingContactError) throw existingContactError;
+
+    const { data: contact, error: contactError } = await supabase.from('cb_whatsapp_contacts').upsert({
       remote_jid: info.remoteJid,
-      phone: phoneFromJid(info.remoteJid),
-      push_name: info.pushName,
+      phone,
+      push_name: info.pushName || existingContact?.push_name,
       is_group: false,
-      suspected_bot: botDetected,
+      suspected_bot: Boolean(existingContact?.suspected_bot || botDetected),
       updated_at: new Date().toISOString(),
     }, { onConflict: 'remote_jid' }).select().single();
+    if (contactError || !contact) throw contactError || new Error('Contact upsert failed');
 
-    const { data: conversation } = await supabase.from('cb_whatsapp_conversations').upsert({
-      contact_id: contact.id,
-      remote_jid: info.remoteJid,
-      is_group: false,
-      suspected_bot: botDetected,
-      ai_paused: botDetected || wantsHuman,
-      pause_reason: botDetected ? 'suspected_bot' : wantsHuman ? 'human_requested' : undefined,
-      service_interest: serviceInterest,
-      last_message_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'remote_jid' }).select().single();
+    const receivedAt = new Date().toISOString();
+    const { data: conversation, error: conversationError } = await supabase.rpc('cb_preserve_conversation_state', {
+      target_remote_jid: info.remoteJid,
+      target_contact_id: contact.id,
+      target_suspected_bot: botDetected,
+      target_wants_human: wantsHuman,
+      target_service_interest: serviceInterest,
+      target_last_message_at: receivedAt,
+    });
+    if (conversationError || !conversation) throw conversationError || new Error('Conversation upsert failed');
 
-    await supabase.from('cb_whatsapp_messages').insert({
+    const { data: insertedMessage, error: messageError } = await supabase.from('cb_whatsapp_messages').insert({
       conversation_id: conversation.id,
       evolution_message_id: info.messageId,
       remote_jid: info.remoteJid,
@@ -215,9 +248,54 @@ Deno.serve(async (req) => {
       media_url: info.mediaUrl,
       media_mime_type: info.mediaMimeType,
       raw_payload: payload,
-    });
+    }).select('id').single();
 
-    await supabase.from('cb_webhook_logs').insert({ event: info.event, remote_jid: info.remoteJid, ignored: false, payload });
+    const optedOut = isOptOutMessage(info.text || '');
+    if (messageError?.code === '23505') {
+      if (optedOut) {
+        const { data: existingMessage, error: existingMessageError } = await supabase
+          .from('cb_whatsapp_messages')
+          .select('id')
+          .eq('evolution_message_id', info.messageId)
+          .single();
+        if (existingMessageError || !existingMessage) throw existingMessageError || new Error('Duplicate message lookup failed');
+        const phoneE164 = `+${phone}`;
+        const { error: suppressionError } = await supabase.from('cb_whatsapp_suppressions').upsert({
+          phone_e164: phoneE164,
+          reason: 'opt_out',
+          source_message_id: existingMessage.id,
+          suppressed_at: receivedAt,
+        }, { onConflict: 'phone_e164' });
+        if (suppressionError) throw suppressionError;
+        const [conversationUpdate, prospectUpdate] = await Promise.all([
+          supabase.from('cb_whatsapp_conversations').update({ ai_paused: true, pause_reason: 'opt_out', updated_at: receivedAt }).eq('id', conversation.id),
+          supabase.from('cb_outbound_prospects').update({ status: 'opted_out', updated_at: receivedAt }).eq('phone_e164', phoneE164),
+        ]);
+        if (conversationUpdate.error || prospectUpdate.error) throw conversationUpdate.error || prospectUpdate.error;
+      }
+      await supabase.from('cb_webhook_logs').insert({ event: info.event, remote_jid: info.remoteJid, ignored: true, ignore_reason: 'duplicate_message', payload: {} });
+      return new Response(JSON.stringify({ ok: true, ignored: true, reason: 'duplicate_message', optOut: optedOut }), { headers: corsHeaders });
+    }
+    if (messageError || !insertedMessage) throw messageError || new Error('Message insert failed');
+
+    await supabase.from('cb_webhook_logs').insert({ event: info.event, remote_jid: info.remoteJid, ignored: false, payload: {} });
+
+    if (optedOut) {
+      const phoneE164 = `+${phone}`;
+      const { error: suppressionError } = await supabase.from('cb_whatsapp_suppressions').upsert({
+        phone_e164: phoneE164,
+        reason: 'opt_out',
+        source_message_id: insertedMessage.id,
+        suppressed_at: receivedAt,
+      }, { onConflict: 'phone_e164' });
+      if (suppressionError) throw suppressionError;
+      const [conversationUpdate, prospectUpdate] = await Promise.all([
+        supabase.from('cb_whatsapp_conversations').update({ ai_paused: true, pause_reason: 'opt_out', updated_at: receivedAt }).eq('id', conversation.id),
+        supabase.from('cb_outbound_prospects').update({ status: 'opted_out', updated_at: receivedAt }).eq('phone_e164', phoneE164),
+      ]);
+      if (conversationUpdate.error || prospectUpdate.error) throw conversationUpdate.error || prospectUpdate.error;
+      return new Response(JSON.stringify({ ok: true, ai: 'paused', optOut: true }), { headers: corsHeaders });
+    }
 
     if (!settings?.enabled || conversation.ai_paused || botDetected || wantsHuman) {
       return new Response(JSON.stringify({ ok: true, ai: 'paused' }), { headers: corsHeaders });
