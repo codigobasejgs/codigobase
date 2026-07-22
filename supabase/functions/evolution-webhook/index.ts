@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.49.1';
+import { generateCompleteGemini } from '../_shared/geminiCompletion.ts';
 import { isOptOutMessage } from '../_shared/outboundSafety.ts';
 
 const corsHeaders = {
@@ -130,31 +131,6 @@ async function fetchMediaAsPart(info: MessageInfo) {
   } catch {
     return null;
   }
-}
-
-async function askGemini(prompt: string, mediaPart: any, apiKey: string, model: string) {
-  const parts: any[] = [{ text: prompt }];
-  if (mediaPart) parts.push(mediaPart);
-
-  const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': apiKey,
-    },
-    body: JSON.stringify({
-      contents: [{ role: 'user', parts }],
-      generationConfig: { temperature: 0.4, maxOutputTokens: 700 },
-    }),
-  });
-
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Gemini error: ${error}`);
-  }
-
-  const data = await response.json();
-  return data?.candidates?.[0]?.content?.parts?.map((p: any) => p.text).filter(Boolean).join('\n').trim() || '';
 }
 
 async function sendWhatsAppText(remoteJid: string, text: string) {
@@ -311,9 +287,24 @@ Deno.serve(async (req) => {
     const model = settings?.model || GEMINI_MODEL;
     const apiKey = settings?.gemini_api_key || GEMINI_API_KEY;
     const customerName = info.pushName?.split(' ')?.[0] || '';
-    const aiPrompt = `${settings.system_prompt}\n\nREGRAS DE COMPORTAMENTO PRIORITÁRIAS:\n${settings?.behavior_rules || 'Tamanho da resposta: curto/médio, estilo WhatsApp. Objetivo: qualificar o cliente antes de vender. Fluxo: uma pergunta por vez, sem textão. Não começar listando tudo; comece perguntando o que o cliente precisa e aprofunde somente no serviço demonstrado.'}\n\nNOME DO CLIENTE NO WHATSAPP:\n${customerName || 'Nome não disponível. Pergunte de forma natural como pode chamar o cliente antes de aprofundar.'}\n\nOPÇÕES GUIADAS POR SERVIÇO:\n${settings?.guided_service_options || 'Quando o cliente demonstrar interesse em um serviço, ofereça opções numeradas curtas e permita resposta livre. Se responder número, interprete no contexto do serviço. Se escolher explicar melhor, peça uma descrição livre.'}\n\nMensagem do cliente: ${info.text || '[mídia enviada sem texto]'}\n\nSe houver mídia anexada, analise imagem/áudio/documento e responda naturalmente. Se o cliente quiser humano, diga que vai chamar um especialista e não continue insistindo.`;
-    const aiText = await askGemini(aiPrompt, mediaPart, apiKey, model);
+    const systemInstruction = `${settings.system_prompt}\n\nREGRAS DE COMPORTAMENTO PRIORITÁRIAS:\n${settings?.behavior_rules || 'Tamanho da resposta: curto/médio, estilo WhatsApp. Objetivo: qualificar o cliente antes de vender. Fluxo: uma pergunta por vez, sem textão. Não começar listando tudo; comece perguntando o que o cliente precisa e aprofunde somente no serviço demonstrado.'}\n\nOPÇÕES GUIADAS POR SERVIÇO:\n${settings?.guided_service_options || 'Quando o cliente demonstrar interesse em um serviço, ofereça opções numeradas curtas e permita resposta livre. Se responder número, interprete no contexto do serviço. Se escolher explicar melhor, peça uma descrição livre.'}\n\nREGRAS TÉCNICAS: conclua sempre a frase e a pergunta antes de terminar. Não pare no meio de uma sentença. Se houver mídia anexada, analise-a e responda naturalmente. Se o cliente quiser humano, diga que vai chamar um especialista e não continue insistindo.`;
+    const userParts: any[] = [{ text: `Nome no WhatsApp: ${customerName || 'não disponível'}\nMensagem do cliente: ${info.text || '[mídia enviada sem texto]'}` }];
+    if (mediaPart) userParts.push(mediaPart);
+    const generation = await generateCompleteGemini({ apiKey, model, systemInstruction, userParts });
+    const generationEvent = generation.complete ? 'ai_generation_completed' : 'ai_generation_withheld';
+    const { error: generationEventError } = await supabase.from('cb_conversation_events').insert({
+      conversation_id: conversation.id,
+      event_type: generationEvent,
+      details: { ...generation.metadata, reason: generation.reason },
+    });
+    if (generationEventError) console.error('AI generation telemetry persistence failed', generationEventError.message);
 
+    if (!generation.complete) {
+      console.warn('Gemini response withheld', { reason: generation.reason, finishReasons: generation.metadata.finishReasons, attempts: generation.metadata.attempts });
+      return new Response(JSON.stringify({ ok: true, ai: false, reason: 'generation_withheld' }), { headers: corsHeaders });
+    }
+
+    const aiText = generation.text;
     if (aiText) {
       const [{ data: latestConversation, error: latestConversationError }, { data: suppression, error: suppressionError }] = await Promise.all([
         supabase.from('cb_whatsapp_conversations').select('ai_paused').eq('id', conversation.id).single(),
@@ -323,17 +314,21 @@ Deno.serve(async (req) => {
       if (latestConversation?.ai_paused || suppression) {
         return new Response(JSON.stringify({ ok: true, ai: 'paused_before_send' }), { headers: corsHeaders });
       }
-      await sendWhatsAppText(info.remoteJid, aiText);
-      await supabase.from('cb_whatsapp_messages').insert({
+      const evolutionResult = await sendWhatsAppText(info.remoteJid, aiText);
+      const evolutionMessageId = evolutionResult?.key?.id || evolutionResult?.message?.key?.id || evolutionResult?.id || null;
+      const sentAt = new Date().toISOString();
+      const { error: aiMessageError } = await supabase.from('cb_whatsapp_messages').insert({
         conversation_id: conversation.id,
+        evolution_message_id: evolutionMessageId,
         remote_jid: info.remoteJid,
         from_me: true,
         sender_type: 'ai',
         message_type: 'text',
         content: aiText,
-        raw_payload: {},
+        raw_payload: { provider: 'gemini', ...generation.metadata },
       });
-      await supabase.from('cb_whatsapp_conversations').update({ last_ai_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', conversation.id);
+      const { error: conversationUpdateError } = await supabase.from('cb_whatsapp_conversations').update({ last_ai_at: sentAt, updated_at: sentAt }).eq('id', conversation.id);
+      if (aiMessageError || conversationUpdateError) throw aiMessageError || conversationUpdateError;
     }
 
     return new Response(JSON.stringify({ ok: true, ai: Boolean(aiText) }), { headers: corsHeaders });
