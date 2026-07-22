@@ -18,14 +18,6 @@
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
-    <script>
-      if (!location.pathname.startsWith('/admin')) {
-        const script = document.createElement('script');
-        script.src = 'https://acscdn.com/script/aclib.js';
-        script.onload = () => window.aclib?.runAutoTag({ zoneId: 'isjuitfmf3' });
-        document.body.appendChild(script);
-      }
-    </script>
   </body>
 </html>
 
